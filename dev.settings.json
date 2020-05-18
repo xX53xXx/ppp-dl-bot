@@ -1,0 +1,7 @@
+{
+    "account": {
+        "username": "",
+        "password": ""
+    },
+    "downloadsDir": "./out"
+}

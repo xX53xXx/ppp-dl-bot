@@ -1,0 +1,1 @@
+export const URL = 'https://p-p-p.tv';

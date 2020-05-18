@@ -1,0 +1,29 @@
+{
+    "compilerOptions": {
+      "module": "commonjs",
+      "strict": true,
+      "baseUrl": "./src",
+      "outDir": "./compiled",
+      "removeComments": true,
+      "resolveJsonModule": true,
+      "experimentalDecorators": true,
+      "target": "es6",
+      "emitDecoratorMetadata": true,
+      "moduleResolution": "node",
+      "importHelpers": true,
+      "types": [
+        "node"
+      ],
+      "typeRoots": [
+        "node_modules/@types"
+      ]
+    },
+    "include": [
+        "./*.ts",
+        "./**/*.ts"
+    ],
+    "exclude": [
+      "./src/public/",
+      "./node_modules/"
+    ]
+  }

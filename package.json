@@ -1,0 +1,27 @@
+{
+  "name": "ppp-dl-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "tsc && electron ./compiled"
+  },
+  "dependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/filenamify": "^2.0.2",
+    "@types/jquery": "^3.3.31",
+    "@types/node": "^14.0.1",
+    "@types/string-similarity": "^3.0.0",
+    "@types/utf8": "^2.1.6",
+    "electron": "^6.0.12",
+    "electron-storage": "^1.0.7",
+    "filenamify": "^4.1.0",
+    "jquery": "^3.4.1",
+    "require-uncached": "^2.0.0",
+    "string-similarity": "^3.0.0",
+    "tslib": "^2.0.0",
+    "typescript": "^3.8.3",
+    "typings": "^2.1.1",
+    "utf8": "^3.0.0"
+  }
+}

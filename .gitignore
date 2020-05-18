@@ -1,3 +1,11 @@
+# Custom
+/node_modules/
+/compiled/
+/.vscode/
+/out/
+settings.json
+
+
 # Logs
 logs
 *.log
