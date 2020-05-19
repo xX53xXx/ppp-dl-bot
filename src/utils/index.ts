@@ -1,9 +1,16 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
 import { readFileSync, existsSync, PathLike } from 'fs';
+import { stringify as toQueryArgs } from 'querystring';
 import { URL } from '../consts';
 import { Settings } from '../entities';
 import { Home, Params } from '../consts/pages';
-import { Navigate } from '../consts/events';
+import {
+    Navigate,
+    Authenticate,
+
+    EventParams,
+    EventResponseParams
+} from '../consts/events';
 
 export function readJsonFile<T>(filePath: PathLike): T {
     if (!existsSync(filePath)) {
@@ -38,12 +45,26 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
 
 // ---
 
+function regEvent<EventName extends keyof EventResponseParams>(eventName: EventName, callback: (params: EventResponseParams[EventName], event: Event) => void) {
+    ipcMain.on(eventName, (e, p) => callback(p, e));
+}
+
+function regEventOnce<EventName extends keyof EventResponseParams>(eventName: EventName, callback: (params: EventResponseParams[EventName], event: Event) => void) {
+    ipcMain.once(eventName, (e, p) => callback(p, e));
+}
+
+function sendEvent<EventName extends keyof EventParams>(eventName: EventName, params: EventParams[EventName]) {
+    useWindow().webContents.send(eventName, params);
+}
+
+// ---
+
 export async function navigate<PageName extends keyof Params>(page: PageName, args?: Params[PageName]): Promise<Location> {
-    useWindow().webContents.send(Navigate, { url: (URL + '/' + page).replace(/\/+/g, '/') });
+    sendEvent(Navigate, (URL + '/' + page).replace(/\/+/g, '/')) + (args ? '?' + toQueryArgs(args) : '');
     
     return new Promise((resolve, reject) => {
         try {
-            ipcMain.once(Navigate, (_: any, location: Location) => {
+            regEventOnce(Navigate, (location: Location) => {
                 resolve(location);
             });
         } catch (error) {
@@ -52,8 +73,21 @@ export async function navigate<PageName extends keyof Params>(page: PageName, ar
     });
 }
 
-export async function authenticate() {
-    console.log('Start navigation.');
-    const location = await navigate(Home);
-    console.log('Stop navigation.', location);
+export async function authenticate(): Promise<void> {
+    await navigate(Home);
+    sendEvent(Authenticate, useSettings().account);
+
+    return new Promise((resolve, reject) => {
+        try {
+            ipcMain.once(Authenticate, (_: any, value: boolean) => {
+                if (value) {
+                    resolve();
+                } else {
+                    reject(new Error('Authentication failed.'));
+                }
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
