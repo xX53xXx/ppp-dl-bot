@@ -1,7 +1,8 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
+import { mkdirSync } from 'fs';
 import { URL } from './consts';
-import { authenticate, $regWindow, regEvent, getLastVideoId } from './utils';
+import { authenticate, $regWindow, regEvent, getLastVideoId, useDatabase, useSettings, getVideoMetaData, downloadVideo } from './utils';
 import { PageStructureError } from './consts/events';
 
 app.on('ready', async () => {
@@ -14,7 +15,7 @@ app.on('ready', async () => {
         }
     });
     win.setMenu(null);
-    win.webContents.openDevTools();
+    // win.webContents.openDevTools();
 
     await win.loadURL(URL);
 
@@ -29,11 +30,33 @@ regEvent(PageStructureError, message => {
 
 async function run(window: BrowserWindow) {
     try {
+        mkdirSync(useSettings().downloadsDir, { recursive: true });
+
         await authenticate();
         const lastVideoId = await getLastVideoId();
+
+        const database = useDatabase();
         
         for (let id = 1; id <= lastVideoId; id++) {
+            const video = database.get(id);
 
+            if (video && video.status === 'completed') {
+                console.log(`Info: Video#${id} skipped.`);
+                continue;
+            }
+
+            const metaData = await getVideoMetaData(id);
+
+            console.log(metaData);
+            
+            /*if (metaData) {
+                const video = await downloadVideo(metaData);
+            } else {
+                database.set({
+                    id,
+                    status: 'broken'
+                });
+            }*/
         }
 
     } catch (err) {

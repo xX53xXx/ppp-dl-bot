@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "author": {
+    "name": "xX53xXx",
+    "email": "53x@acevik.de"
+  },
   "scripts": {
     "start": "tsc && electron ./compiled",
     "postinstall": "patch-package"
@@ -12,11 +16,13 @@
     "electron": "^9.0.0",
     "filenamify": "^4.1.0",
     "querystring": "^0.2.0",
+    "sanitize-filename": "^1.6.3",
     "string-similarity": "^4.0.1",
     "utf8": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^14.0.4",
+    "@types/sanitize-filename": "^1.6.3",
     "@types/string-similarity": "^3.0.0",
     "@types/utf8": "^2.1.6",
     "patch-package": "^6.2.2",
