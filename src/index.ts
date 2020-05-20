@@ -3,8 +3,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as filenamify from 'filenamify';
 
+
 import { URL } from './consts';
-import { authenticate, $regWindow } from './utils';
+import { CrossPagesEvent, CrossPagesStorage } from './consts/events';
+import { authenticate, $regWindow, sendEvent, regEvent } from './utils';
 
 app.on('ready', () => {
     const win = new BrowserWindow({
@@ -26,8 +28,18 @@ app.on('ready', () => {
     run(win);
 });
 
+let _crossPageProcesses: any = {};
+regEvent(CrossPagesStorage, (_processes) => {
+    console.log('Hold: ', _processes);
+    _crossPageProcesses = _processes;
+});
+
+regEvent(CrossPagesEvent, () => {
+    sendEvent(CrossPagesEvent, _crossPageProcesses);
+});
+
+
 async function run(window: BrowserWindow) {
     console.log('Hallo Welt');
-
     await authenticate();
 }

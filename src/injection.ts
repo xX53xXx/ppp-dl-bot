@@ -3,6 +3,8 @@ import axios from 'axios';
 import { stringify as toQueryArgs } from 'querystring';
 import { URL } from './consts';
 import { 
+    CrossPagesEvent,
+    CrossPagesStorage,
     Navigate,
     Authenticate,
 
@@ -10,6 +12,7 @@ import {
     EventResponseParams
 } from './consts/events';
 import {
+import { navigate } from './injection';
     Login,
     Params,
     Logout
@@ -116,17 +119,11 @@ function sendIsAuthenticated(value: boolean = true) {
 
 // --- On Load
 
-window.onload = async (e: Event) => {
+window.onload = async (e: Event) => sendEvent(CrossPagesEvent, undefined);
+async function onAfterCrossPagesProcesses() {
     sendEvent(Navigate, location);
-
-    console.log(JSON.stringify(_processes, null, 2));
-
-    if (await _onProceedCrossPagesProcesses()) {
-        return;
-    }
-
-    console.log('Done.');
-};
+    console.log('Done');
+}
 
 // ---
 
@@ -157,6 +154,7 @@ type StepType = (deps: {
     get: GetFunction; 
     next: NextFunction; 
     done: DoneFunction;
+    navigate: typeof navigate;
 }) => void;
 
 type Steps = {
@@ -164,18 +162,24 @@ type Steps = {
     [stepName: string]: StepType;
 };
 
-const _processes: any = (() => {
-    const val = localStorage.getItem('cross-page-processes');
+let _processes: any = null;
+regEvent(CrossPagesEvent, async _procs => {
+    _processes = _procs;
 
-    if (val) {
-        return JSON.parse(val);
+    const processes = Object.keys(_processes).reverse();
+
+    if (processes.length > 0) {
+        for (let processKey of processes) {
+            await _runNextStep(processKey);
+        }
     }
 
-    return {};
-})();
+    onAfterCrossPagesProcesses();
+});
 
 function _saveProcesses() {
-    localStorage.setItem('cross-page-processes', JSON.stringify(_processes));
+    // localStorage.setItem('cross-page-processes', JSON.stringify(_processes));
+    sendEvent(CrossPagesStorage, _processes);
 }
 
 function _set(processKey: string, key: string, value: any) {
@@ -233,7 +237,10 @@ async function _runStep(processKey: string, initStep?: StepType): Promise<boolea
         set: (key: string, value: any) => _set(processKey, key, value),
         get: (key: string): any => _get(processKey, key),
         next: (stepName: StepName) => _next(processKey, stepName),
-        done: () => _done(processKey)
+        done: () => _done(processKey),
+        navigate: () => {
+            
+        }
     };
 
     if (step === '$init' && initStep) {
@@ -249,18 +256,6 @@ async function _runStep(processKey: string, initStep?: StepType): Promise<boolea
     }
 
     return _runNextStep(processKey);
-}
-
-async function _onProceedCrossPagesProcesses(): Promise<boolean> {
-    const processes = Object.keys(_processes).reverse();
-
-    if (processes.length > 0) {
-        for (let processKey of processes) {
-            await _runNextStep(processKey);
-        }
-    }
-    
-    return false;
 }
 
 function processCrossPages(processKey: string, steps: Steps) {

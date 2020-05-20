@@ -45,15 +45,15 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
 
 // ---
 
-function regEvent<EventName extends keyof EventResponseParams>(eventName: EventName, callback: (params: EventResponseParams[EventName], event: Event) => void) {
+export function regEvent<EventName extends keyof EventResponseParams>(eventName: EventName, callback: (params: EventResponseParams[EventName], event: Event) => void) {
     ipcMain.on(eventName, (e, p) => callback(p, e));
 }
 
-function regEventOnce<EventName extends keyof EventResponseParams>(eventName: EventName, callback: (params: EventResponseParams[EventName], event: Event) => void) {
+export function regEventOnce<EventName extends keyof EventResponseParams>(eventName: EventName, callback: (params: EventResponseParams[EventName], event: Event) => void) {
     ipcMain.once(eventName, (e, p) => callback(p, e));
 }
 
-function sendEvent<EventName extends keyof EventParams>(eventName: EventName, params: EventParams[EventName]) {
+export function sendEvent<EventName extends keyof EventParams>(eventName: EventName, params: EventParams[EventName]) {
     useWindow().webContents.send(eventName, params);
 }
 
@@ -62,9 +62,12 @@ function sendEvent<EventName extends keyof EventParams>(eventName: EventName, pa
 export async function navigate<PageName extends keyof Params>(page: PageName, args?: Params[PageName]): Promise<Location> {
     sendEvent(Navigate, (URL + '/' + page).replace(/\/+/g, '/')) + (args ? '?' + toQueryArgs(args) : '');
     
+    console.log('Nav: event sent');
+
     return new Promise((resolve, reject) => {
         try {
             regEventOnce(Navigate, (location: Location) => {
+                console.log('Nav: ', location);
                 resolve(location);
             });
         } catch (error) {
@@ -77,10 +80,13 @@ export async function authenticate(): Promise<void> {
     await navigate(Home);
     sendEvent(Authenticate, useSettings().account);
 
+    console.log('Auth event sent');
+
     return new Promise((resolve, reject) => {
         try {
             ipcMain.once(Authenticate, (_: any, value: boolean) => {
                 if (value) {
+                    console.log('Auth event resolved');
                     resolve();
                 } else {
                     reject(new Error('Authentication failed.'));
