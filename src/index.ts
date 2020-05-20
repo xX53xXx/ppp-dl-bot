@@ -1,45 +1,43 @@
-import { app, BrowserWindow, ipcMain, Event } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
-import * as fs from 'fs';
-import * as filenamify from 'filenamify';
-
-
 import { URL } from './consts';
-import { CrossPagesEvent, CrossPagesStorage } from './consts/events';
-import { authenticate, $regWindow, sendEvent, regEvent } from './utils';
+import { authenticate, $regWindow, regEvent, getLastVideoId } from './utils';
+import { PageStructureError } from './consts/events';
 
-app.on('ready', () => {
+app.on('ready', async () => {
     const win = new BrowserWindow({
         width: 1366,
         height: 768,
         webPreferences: {
             nodeIntegration: true,
-            preload: path.join(__dirname, 'injection.js')
+            preload: path.join(__dirname, 'injection/index.js')
         }
     });
-
-    win.loadURL(URL);
-
     win.setMenu(null);
-
     win.webContents.openDevTools();
+
+    await win.loadURL(URL);
 
     $regWindow(win);
     run(win);
 });
 
-let _crossPageProcesses: any = {};
-regEvent(CrossPagesStorage, (_processes) => {
-    console.log('Hold: ', _processes);
-    _crossPageProcesses = _processes;
+regEvent(PageStructureError, message => {
+    console.error(`PageStructureError: ${message}. Code update required!`);
+    // process.exit(-1);
 });
-
-regEvent(CrossPagesEvent, () => {
-    sendEvent(CrossPagesEvent, _crossPageProcesses);
-});
-
 
 async function run(window: BrowserWindow) {
-    console.log('Hallo Welt');
-    await authenticate();
+    try {
+        await authenticate();
+        const lastVideoId = await getLastVideoId();
+        
+        for (let id = 1; id <= lastVideoId; id++) {
+
+        }
+
+    } catch (err) {
+        console.error(err);
+        // process.exit(-2);
+    }
 }

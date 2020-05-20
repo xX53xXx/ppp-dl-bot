@@ -4,27 +4,24 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "tsc && electron ./compiled"
+    "start": "tsc && electron ./compiled",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@types/axios": "^0.14.0",
-    "@types/electron": "^1.6.10",
-    "@types/filenamify": "^2.0.2",
-    "@types/jquery": "^3.3.31",
-    "@types/node": "^14.0.1",
+    "axios": "^0.19.2",
+    "electron": "^9.0.0",
+    "filenamify": "^4.1.0",
+    "querystring": "^0.2.0",
+    "string-similarity": "^4.0.1",
+    "utf8": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.4",
     "@types/string-similarity": "^3.0.0",
     "@types/utf8": "^2.1.6",
-    "axios": "^0.19.2",
-    "electron": "^6.0.12",
-    "electron-storage": "^1.0.7",
-    "filenamify": "^4.1.0",
-    "jquery": "^3.4.1",
-    "querystring": "^0.2.0",
-    "require-uncached": "^2.0.0",
-    "string-similarity": "^3.0.0",
+    "patch-package": "^6.2.2",
+    "postinstall-postinstall": "^2.1.0",
     "tslib": "^2.0.0",
-    "typescript": "^3.8.3",
-    "typings": "^2.1.1",
-    "utf8": "^3.0.0"
+    "typescript": "^3.9.3"
   }
 }

@@ -1,0 +1,194 @@
+diff --git a/node_modules/electron/electron.d.ts b/node_modules/electron/electron.d.ts
+index ec613c4..89ec676 100644
+--- a/node_modules/electron/electron.d.ts
++++ b/node_modules/electron/electron.d.ts
+@@ -1656,7 +1656,8 @@ Here's a very simple example of creating a custom Jump List:
+     webContents: WebContents;
+   }
+ 
+-  class BrowserWindow extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class BrowserWindow implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/browser-window
+ 
+@@ -3061,7 +3062,8 @@ This cannot be called when `titleBarStyle` is set to `customButtonsOnHover`.
+     state: string;
+   }
+ 
+-  class ClientRequest extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class ClientRequest implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/client-request
+ 
+@@ -3501,7 +3503,8 @@ This cannot be called when `titleBarStyle` is set to `customButtonsOnHover`.
+     value: string;
+   }
+ 
+-  class Cookies extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class Cookies implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/cookies
+ 
+@@ -3671,7 +3674,8 @@ Sets a cookie with `details`.
+     scheme: string;
+   }
+ 
+-  class Debugger extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class Debugger implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/debugger
+ 
+@@ -4204,7 +4208,8 @@ Send given command to the debugging target.
+     show(): Promise<void>;
+   }
+ 
+-  class DownloadItem extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class DownloadItem implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/download-item
+ 
+@@ -4600,7 +4605,8 @@ Retrieves the product descriptions.
+     restoreCompletedTransactions(): void;
+   }
+ 
+-  class IncomingMessage extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class IncomingMessage implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/incoming-message
+ 
+@@ -5464,7 +5470,8 @@ Starts recording network events to `path`.
+     newGuest?: BrowserWindow;
+   }
+ 
+-  class Notification extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class Notification implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/notification
+ 
+@@ -6351,7 +6358,8 @@ e.g.
+     scriptUrl: string;
+   }
+ 
+-  class ServiceWorkers extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class ServiceWorkers implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/service-workers
+ 
+@@ -6392,7 +6400,8 @@ e.g.
+     getFromVersionID(versionId: number): ServiceWorkerInfo;
+   }
+ 
+-  class Session extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class Session implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/session
+ 
+@@ -7519,7 +7528,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     label: string;
+   }
+ 
+-  class TouchBarColorPicker extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarColorPicker implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-color-picker
+ 
+@@ -7531,7 +7541,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     selectedColor: string;
+   }
+ 
+-  class TouchBarGroup extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarGroup implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-group
+ 
+@@ -7541,7 +7552,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     constructor(options: TouchBarGroupConstructorOptions);
+   }
+ 
+-  class TouchBarLabel extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarLabel implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-label
+ 
+@@ -7554,7 +7566,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     textColor: string;
+   }
+ 
+-  class TouchBarPopover extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarPopover implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-popover
+ 
+@@ -7566,7 +7579,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     label: string;
+   }
+ 
+-  class TouchBarScrubber extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarScrubber implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-scrubber
+ 
+@@ -7582,7 +7596,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     showArrowButtons: boolean;
+   }
+ 
+-  class TouchBarSegmentedControl extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarSegmentedControl implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-segmented-control
+ 
+@@ -7595,7 +7610,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     selectedIndex: number;
+   }
+ 
+-  class TouchBarSlider extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarSlider implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-slider
+ 
+@@ -7609,7 +7625,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     value: number;
+   }
+ 
+-  class TouchBarSpacer extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class TouchBarSpacer implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/touch-bar-spacer
+ 
+@@ -7730,7 +7747,8 @@ This property is only available on macOS 10.14 Mojave or newer.
+     transactionState: ('purchasing' | 'purchased' | 'failed' | 'restored' | 'deferred');
+   }
+ 
+-  class Tray extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class Tray implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/tray
+ 
+@@ -8239,7 +8257,8 @@ This value is set to false by default.
+     type: string;
+   }
+ 
+-  class WebContents extends NodeJS.EventEmitter {
++  // @ts-ignore
++  class WebContents implements NodeJS.EventEmitter {
+ 
+     // Docs: http://electronjs.org/docs/api/web-contents
+ 

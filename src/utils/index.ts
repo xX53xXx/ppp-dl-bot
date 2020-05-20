@@ -1,15 +1,17 @@
-import { BrowserWindow, ipcMain, Event } from 'electron';
+import { BrowserWindow, ipcMain, Event, ipcRenderer } from 'electron';
 import { readFileSync, existsSync, PathLike } from 'fs';
 import { stringify as toQueryArgs } from 'querystring';
 import { URL } from '../consts';
 import { Settings } from '../entities';
-import { Home, Params } from '../consts/pages';
+import { Home, Params, Logout, VideoGallery } from '../consts/pages';
 import {
     Navigate,
+    NavigationResponse,
     Authenticate,
 
     EventParams,
-    EventResponseParams
+    EventResponseParams,
+    GetLastVideoId
 } from '../consts/events';
 
 export function readJsonFile<T>(filePath: PathLike): T {
@@ -53,47 +55,71 @@ export function regEventOnce<EventName extends keyof EventResponseParams>(eventN
     ipcMain.once(eventName, (e, p) => callback(p, e));
 }
 
-export function sendEvent<EventName extends keyof EventParams>(eventName: EventName, params: EventParams[EventName]) {
+export function sendEvent<EventName extends keyof EventParams>(eventName: EventName, params?: EventParams[EventName]) {
     useWindow().webContents.send(eventName, params);
 }
 
 // ---
 
-export async function navigate<PageName extends keyof Params>(page: PageName, args?: Params[PageName]): Promise<Location> {
-    sendEvent(Navigate, (URL + '/' + page).replace(/\/+/g, '/')) + (args ? '?' + toQueryArgs(args) : '');
-    
-    console.log('Nav: event sent');
+export async function navigate<PageName extends keyof Params>(page: PageName, args?: Params[PageName]): Promise<NavigationResponse> {
+    const url = (URL + '/' + page).replace(/\/+/g, '/') + (args ? '?' + toQueryArgs(args) : '');
 
-    return new Promise((resolve, reject) => {
-        try {
-            regEventOnce(Navigate, (location: Location) => {
-                console.log('Nav: ', location);
-                resolve(location);
-            });
-        } catch (error) {
-            reject(error);
-        }
-    });
+    try {
+        const rsp = await Promise.all([
+            new Promise<NavigationResponse>((resolve, _) => {
+                regEventOnce(Navigate, rsp => {
+                    resolve(rsp);
+                });
+            }),
+            useWindow().loadURL(url)
+        ]);
+
+        return rsp[0];
+    } catch (error) {
+        throw error;
+    }
 }
 
 export async function authenticate(): Promise<void> {
-    await navigate(Home);
-    sendEvent(Authenticate, useSettings().account);
+    const credentials = useSettings().account;
+    const rsp = await navigate(Home);
 
-    console.log('Auth event sent');
+    if (rsp.username) {
+        if (rsp.username.toLowerCase() === credentials.username.toLowerCase()) {
+            return;
+        } else {
+            await navigate(Logout);
+            await navigate(Home);
+        }
+    }
 
     return new Promise((resolve, reject) => {
-        try {
-            ipcMain.once(Authenticate, (_: any, value: boolean) => {
-                if (value) {
-                    console.log('Auth event resolved');
-                    resolve();
-                } else {
-                    reject(new Error('Authentication failed.'));
-                }
-            });
-        } catch (error) {
-            reject(error);
-        }
+        regEventOnce(Navigate, rsp => {
+            if (rsp.username && rsp.username.toLowerCase() === credentials.username.toLowerCase()) {
+                resolve();
+            } else {
+                reject(new Error('Authentication failed!'));
+            }
+        });
+
+        sendEvent(Authenticate, credentials);
     });
+}
+
+export async function getLastVideoId(): Promise<number> {
+    await navigate(VideoGallery);
+
+    await new Promise((resolve, _) => setTimeout(resolve, 1024));
+
+    return new Promise<number>((resolve, _) => {
+        regEventOnce(GetLastVideoId, id => {
+            resolve(id);
+        });
+
+        sendEvent(GetLastVideoId);
+    });
+}
+
+export async function getVideoMetaData(videoId: number): Promise<any|null> {
+
 }

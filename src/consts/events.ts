@@ -1,20 +1,27 @@
 import { Account } from '../entities';
 
-export const CrossPagesEvent = 'cross-pages-event';
-export const CrossPagesStorage = 'cross-pages-storage';
+export const PageStructureError = 'error-page-structure';
 
 export const Navigate = 'navigate';
 export const Authenticate = 'authenticate';
 
+export const GetLastVideoId = 'get-last-video-id';
+export const GetVideoMetaData = 'get-video-meta-data';
+
+export type NavigationResponse = {
+    location: Location;
+    username: string|null;
+};
+
 export type EventParams = {
     [Navigate]: string; // url
     [Authenticate]: Account; // credentials
-    [CrossPagesEvent]: any; // TODO: Define type for processes object
+    [GetLastVideoId]: undefined;
 };
 
 export type EventResponseParams = {
-    [Navigate]: Location;
-    [Authenticate]: boolean;
-    [CrossPagesEvent]: undefined;
-    [CrossPagesStorage]: any; // TODO: Define type for processes object
+    [Navigate]: NavigationResponse;
+    [Authenticate]: string; // Authenticated username
+    [PageStructureError]: string;
+    [GetLastVideoId]: number;
 };
