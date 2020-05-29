@@ -3,7 +3,7 @@ import {
     Authenticate,
     GetLastVideoId,
     GetVideoMetaData,
-    DownloadVideo,
+    StoreVideoData,
 } from '../consts/events';
 
 import {
@@ -11,12 +11,65 @@ import {
     regEvent,
     sendEvent,
     getUsername,
-    throwPageStructureError
+    throwPageStructureError,
+    fixFailedChars
 } from './utils';
 
 import {
     VideoMeta
 } from '../entities';
+
+// Hack the stream
+const $XMLHttpRequest = window.XMLHttpRequest;
+// @ts-ignore
+window.XMLHttpRequest = function() {
+    const ths: any = this;
+    const xhr: any = new $XMLHttpRequest();
+
+    const debug = false;
+
+    for (let prop in xhr) {
+        if (typeof xhr[prop] === 'function') {
+            ths[prop] = (...args: any[]) => {
+                debug && console.log(`XHR function "${prop}" is called with args: `, args);
+                return xhr[prop](...args);
+            }
+        } else {
+            Object.defineProperty(ths, prop, {
+                get: () => {
+                    debug && console.log(`XHR property "${prop}" is read and contains value: `, xhr[prop]);
+                    return xhr[prop];
+                },
+                set: (v: any) => {
+                    if (typeof v === 'function') {
+                        debug && console.log(`XHR property "${prop}" is set and gets function: `, v.toString());
+                        xhr[prop] = (e: any) => {
+                            if (e.type === 'readystatechange' && ths.getResponseHeader('Content-Type') === 'video/MP2T') {
+                                const buffer: ArrayBuffer = e?.target?.response;
+                                if (buffer) {
+                                    sendEvent(StoreVideoData, {
+                                        dataURL: e?.target?.responseURL,
+                                        data: buffer
+                                    });
+                                }
+                                v(e);
+                            } else {
+                                v(e);
+                            }
+                        };
+                    } else {
+                        debug && console.log(`XHR property "${prop}" is set and gets value: `, v);
+                        xhr[prop] = v;
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+        }
+    }
+};
+// /// Hack the stream
+
 
 // --- On Load
 window.onload = async (e: Event) => sendEvent(Navigate, { location: clone<Location>(location), username: getUsername() });
@@ -84,20 +137,11 @@ regEvent(GetVideoMetaData, id => {
         }
     }
 
-    sendEvent(GetVideoMetaData, metaData);
-});
-
-regEvent(DownloadVideo, videoMeta => {
-    const content = document.querySelector<HTMLDivElement>('#content_big');
-
-    if (content) {
-        const downloadLink = content.querySelector<HTMLAnchorElement>('a[href^="download.php?id"]');
-
-        if (downloadLink) {
-            downloadLink.click();
-            return;
-        }
+    if (metaData && metaData.name && metaData.name.trim().length > 0) {
+        metaData.name = fixFailedChars(metaData.name.trim());
+    } else {
+        metaData = null;
     }
 
-    throwPageStructureError(`Cant download video file ${videoMeta.downloadUrl}`);
+    sendEvent(GetVideoMetaData, metaData);
 });

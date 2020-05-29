@@ -1,5 +1,9 @@
-import { BrowserWindow, ipcMain, Event, DownloadItem, WebContents } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, stat } from 'fs';
+import { BrowserWindow, ipcMain, Event } from 'electron';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, renameSync, unlinkSync } from 'fs';
+import formatDate from 'date-fns/format';
+import sanitize from 'sanitize-filename';
+import * as path from 'path';
+import { tmpdir } from 'os';
 import { stringify as toQueryArgs } from 'querystring';
 import { URL } from '../consts';
 import { 
@@ -18,11 +22,8 @@ import {
     EventResponseParams,
     GetLastVideoId,
     GetVideoMetaData,
-    DownloadVideo
+    StoreVideoData
 } from '../consts/events';
-// @ts-ignore
-import sanitize from 'sanitize-filename';
-import * as path from 'path';
 
 export function readJsonFile<T>(filePath: PathLike): T {
     if (!existsSync(filePath)) {
@@ -33,8 +34,8 @@ export function readJsonFile<T>(filePath: PathLike): T {
     return JSON.parse(data) as T;
 }
 
-export async function writeJsonFile<T = any>(filePath: PathLike, data: T): Promise<void> {
-    writeFileSync(filePath, JSON.stringify(data), 'utf-8');
+export async function writeJsonFile<T = any>(filePath: PathLike, data: T, format?: boolean): Promise<void> {
+    writeFileSync(filePath, JSON.stringify(data, null, format? 2 : undefined), 'utf-8');
 }
 
 let browserWindow: BrowserWindow|null = null;
@@ -54,6 +55,14 @@ const settings: { [filePath: string]: Settings; } = {};
 export function useSettings(settingsFilePath: string = './settings.json'): Settings {
     if (!settings[settingsFilePath]) {
         settings[settingsFilePath] = readJsonFile<Settings>(settingsFilePath);
+        
+        if (!settings[settingsFilePath].tempDir) {
+            settings[settingsFilePath].tempDir = tmpdir();
+        }
+
+        if (!settings[settingsFilePath].videoPartTimeout) {
+            settings[settingsFilePath].videoPartTimeout = 30;
+        }
     }
 
     return settings[settingsFilePath];
@@ -148,81 +157,81 @@ export async function getVideoMetaData(videoId: number): Promise<VideoMeta|null>
 
     return new Promise<VideoMeta|null>((resolve, _) => {
         regEventOnce(GetVideoMetaData, metaData => {
-            resolve(metaData);
+            if (metaData && metaData.name && metaData.name.length > 0) {
+                resolve(metaData);
+            }
+            
+            resolve(null);
         });
 
         sendEvent(GetVideoMetaData, videoId);
     });
 }
 
-export async function downloadVideo(videoMeta: VideoMeta): Promise<VideoFile> {
-    const database = useDatabase();
+export async function downloadVideo(videoId: number): Promise<VideoFile|null> {
+    const settings = useSettings();
+    const toutTime: number = settings.videoPartTimeout! * 1024;
+    const ts = new Date();
+    mkdirSync(settings.tempDir!, { recursive: true });
 
-    return new Promise<VideoFile>((resolve, _) => {
-        useWindow().webContents.session.once('will-download', async (e: Event, item: DownloadItem, webContents: WebContents) => {
-            const fileName: string = sanitize(videoMeta.name!) + '.mp4';
-            const video: VideoFile = {
-                ...videoMeta,
-                path: path.join(useSettings().downloadsDir, fileName),
-                status: 'prepared'
-            };
+    const fileName = formatDate(ts, 'T') + '.TS';
+    const filePath = path.join(settings.tempDir!, fileName);
 
-            database.set(video);
+    return new Promise<VideoFile|null>(async (resolve, reject) => {
+        const metaData = await getVideoMetaData(videoId);
 
-            item.setSavePath(video.path!);
+        if (!metaData) {
+            resolve(null);
+            return;
+        }
 
-            item.on('updated', async (e, state) => {
-                const oldVideoState = video.status;
+        const readyFileName = sanitize(metaData?.name!, {
+            replacement: (_: string) => {
+                return '-';
+            }
+        }).replace(/\ +/g, ' ').replace(/\-+/g, '-').trim() + '.TS';
+        const videoMeta: VideoFile = {
+            ...metaData,
+            downloadStatus: 'init',
+            path: path.join(settings.downloadsDir, readyFileName)
+        } as VideoFile;
 
-                switch (state) {
-                    case 'interrupted':
-                        video.status = 'interrupted';
-                        console.log(`Video download of '${video.path}' interrupted.`);
-                        (e as any).sender._events.done();
-                        break;
+        const fh = openSync(filePath, 'ax');
 
-                    case 'progressing':
-                        if (item.isPaused()) {
-                            video.status = 'paused';
-                            console.log(`Video download of '${video.path}' paused.`);
-                        } else {
-                            video.status = 'progressing';
-                        }
-                        break;
+        let timeout: NodeJS.Timeout|null = null;
 
-                    default:
-                        console.warn(`Unknown downloading state '${state}'.`);
-                        break;
-                }
+        const fin = () => {
+            closeSync(fh);
+            ipcMain.removeAllListeners(StoreVideoData);
 
-                if (oldVideoState !== video.status) {
-                    database.save();
-                }
-            });
+            if (videoMeta.downloadStatus === 'downloading') {
+                videoMeta.downloadStatus = 'done';
+                renameSync(filePath, videoMeta.path!);
+            } else {
+                videoMeta.downloadStatus = 'broken';
+                unlinkSync(filePath);
+            }
 
-            item.once('done', async (e, state) => {
-                const oldVideoState = video.status;
-                
-                switch (state) {
-                    case 'completed':
-                        video.status = 'completed';
-                        console.log(`Video download of '${video.path}' completed.`);
-                        break;
-                        
-                    default:
-                        video.status = 'failed';
-                        console.log(`Video download of '${video.path}' failed // ${state}.`);
-                        break;
-                }
+            console.log(`Download done for ${videoMeta.id}#"${videoMeta.name}" -> ${videoMeta.downloadStatus}`);
 
-                if (oldVideoState !== video.status) {
-                    database.save();
-                }
+            resolve(videoMeta);
+        };
 
-                resolve(video);
-            });
+        const tick = async (data?: ArrayBuffer) => {
+            clearTimeout(timeout!);
+            if (data && data.byteLength > 0) {
+                videoMeta.downloadStatus = 'downloading';
+            }
+            timeout = setTimeout(fin, toutTime);
+        };
+
+        regEvent(StoreVideoData, ({ data }) => {
+            tick(data);
+            writeSync(fh, new Uint8Array(data));
         });
 
-        sendEvent(DownloadVideo, videoMeta);
+        tick();
+
+        console.log(`Downloading ${videoMeta.id}#"${videoMeta.name}" ...`);
     });
 }

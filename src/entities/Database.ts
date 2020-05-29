@@ -3,10 +3,13 @@ import { existsSync } from 'fs';
 import { readJsonFile, useSettings, writeJsonFile } from '../utils';
 import { VideoMeta } from './VideoMeta';
 
-export type DownloadStatus = 'prepared' | 'progressing' | 'interrupted' | 'paused' | 'completed' | 'failed' | 'broken';
+export type DownloadStatus = 'init' | 'broken' | 'downloading' | 'done';
+export type ConverterStatus = 'waiting' | 'converting' | 'done';
 
 export interface Video extends VideoMeta {
-    status: DownloadStatus;
+    downloadStatus: DownloadStatus;
+    converterStatus?: ConverterStatus;
+    convertingStarted?: Date;
     path?: string;
 }
 
@@ -37,6 +40,6 @@ export class Database {
     }
 
     public async save() {
-        return writeJsonFile(this._dbFilePath, this._db);
+        return writeJsonFile(this._dbFilePath, this._db, true);
     }
 }

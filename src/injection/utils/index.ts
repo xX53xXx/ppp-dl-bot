@@ -61,3 +61,20 @@ export function sendIsAuthenticated(username: string) {
 export function throwPageStructureError(message: string) {
     sendEvent(PageStructureError, message);
 }
+
+export function fixFailedChars(value: string): string {
+    value = value.replace('Ã¶', 'ö');
+    value = value.replace('Ã¤', 'ä');
+    value = value.replace('Ã¼', 'ü');
+
+    value = value.replace('ÃŸ', 'ß');
+    value = value.replace('Â´', '\'');
+
+    // ---
+
+    value = value.replace('├Â', 'ö');
+
+    value = value.replace('&amp;', '&');
+
+    return value;
+}

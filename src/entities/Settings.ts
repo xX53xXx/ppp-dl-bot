@@ -7,4 +7,6 @@ export interface Account {
 export interface Settings {
     account: Account;
     downloadsDir: string;
+    tempDir?: string; // default: system temp dir
+    videoPartTimeout?: number; // in seconds, default: 30
 }
