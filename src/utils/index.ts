@@ -193,8 +193,10 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
         const videoMeta: VideoFile = {
             ...metaData,
             downloadStatus: 'init',
-            path: path.join(settings.downloadsDir, readyFileName)
+            path: './' + readyFileName
         } as VideoFile;
+
+        const finalPathName = path.join(settings.downloadsDir, readyFileName);
 
         const fh = openSync(filePath, 'ax');
 
@@ -207,9 +209,9 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
             if (videoMeta.downloadStatus === 'downloading') {
                 videoMeta.downloadStatus = 'done';
                 try {
-                    renameSync(filePath, videoMeta.path!);
+                    renameSync(filePath, finalPathName);
                 } catch {
-                    copyFileSync(filePath, videoMeta.path!);
+                    copyFileSync(filePath, finalPathName);
                     unlinkSync(filePath);
                 }
                 
@@ -242,4 +244,8 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
 
         console.log(`Downloading ${videoMeta.id}#"${videoMeta.name}" ...`);
     });
+}
+
+export function getFileName(filePath: string): string {
+    return filePath.replace(/^.*[\\\/]/g, '');
 }

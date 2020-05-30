@@ -10,6 +10,7 @@
   "scripts": {
     "start": "tsc && electron ./compiled",
     "convert": "tsc && node ./compiled/converter",
+    "fix-paths": "tsc && node ./compiled/scripts/fix_paths.js",
     "postinstall": "patch-package"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import {
     useDatabase,
-    useSettings
+    useSettings,
+    getFileName
 } from '../utils';
 import { Video } from '../entities/Database';
 import isAfter from 'date-fns/isAfter';
@@ -15,12 +16,13 @@ const database = useDatabase();
 const settings = useSettings();
 
 
-async function convert(entry: Video, newFilePath: string) {
+async function convert(entry: Video, currentFilePath: string, newFilePath: string) {
     return new Promise((resolve, reject) => {
         ffmpeg({
             source: settings.converter?.ffmpegPath
         })
         .on('start', (cmd) => {
+            console.log('');
             console.log(`Start converting ${entry.id}#"${entry.name}": "${entry.path}" => "${newFilePath}"`);
             console.log(cmd);
         })
@@ -37,17 +39,13 @@ async function convert(entry: Video, newFilePath: string) {
             console.log(`Converting of ${entry.id}#"${entry.name}": "${entry.path}" => "${newFilePath}" is done.`);
             resolve();
         })
-        .input(entry.path!)
+        .input(currentFilePath)
         .addOption('-c:v h264')
         .addOption('-c:a aac')
         .addOption('-preset veryslow')
         .addOption('-level 6.2')
         .saveToFile(newFilePath);
     });
-}
-
-function getFileName(filePath: string): string {
-    return filePath.replace(/^.*[\\\/]/g, '');
 }
 
 let runTimeout: any = null;
@@ -77,7 +75,9 @@ const run = async () => {
             }
         }
 
-        if (!entry.path || !existsSync(entry.path)) {
+        const currentFilePath = entry.path ? joinPath(settings.downloadsDir, entry.path!.replace(/^.\//g, '')) : undefined;
+
+        if (!currentFilePath || !existsSync(currentFilePath)) {
             console.error('Error: Broken entry', entry);
             return;
         }
@@ -101,37 +101,36 @@ const run = async () => {
             }
         }
 
-        const newFilePath = entry.path!.replace(/\.TS$/ig, '.mp4');
+        const newFilePath = currentFilePath.replace(/\.TS$/ig, '.mp4');
 
         if (existsSync(newFilePath)) {
             renameSync(newFilePath, newFilePath.replace(/(.+?)(\.mp4)$/ig, `$1.${dateFormat(now, 'T')}$2`));
         }
 
         try {
-            await convert(entry, newFilePath);
+            await convert(entry, currentFilePath, newFilePath);
             entry.converterStatus = 'done';
-            const oldPath = entry.path;
-            entry.path = newFilePath;
+            entry.path = './' + getFileName(newFilePath);
 
-            if (oldPath !== newFilePath) {
+            if (currentFilePath !== newFilePath) {
                 const dropDir = settings.converter?.dropDir;
     
                 if (dropDir === null) {
-                    console.log(`Deleting old file: "${oldPath}"`);
-                    unlinkSync(oldPath!);
+                    console.log(`Deleting old file: "${currentFilePath}"`);
+                    unlinkSync(currentFilePath!);
                 } else if (dropDir) {
                     mkdirSync(dropDir, { recursive: true });
 
                     if (existsSync(dropDir)) {
-                        const dropFilePath = joinPath(dropDir, getFileName(oldPath!));
+                        const dropFilePath = joinPath(dropDir, getFileName(currentFilePath!));
 
-                        console.log(`Dropping old file: "${oldPath}" => "${dropFilePath}"`);
+                        console.log(`Dropping old file: "${currentFilePath}" => "${dropFilePath}"`);
 
                         try {
-                            renameSync(oldPath!, dropFilePath);
+                            renameSync(currentFilePath!, dropFilePath);
                         } catch {
-                            copyFileSync(oldPath!, dropFilePath);
-                            unlinkSync(oldPath!);
+                            copyFileSync(currentFilePath!, dropFilePath);
+                            unlinkSync(currentFilePath!);
                         }
                     }
                 }

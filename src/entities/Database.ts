@@ -43,6 +43,8 @@ export class Database {
     }
 
     public async set(video: Video, autoSave: boolean = true) {
+        this.reload();
+        
         this._db[video.id] = video;
 
         if (autoSave) {
