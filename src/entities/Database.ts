@@ -2,6 +2,7 @@ import * as path from 'path';
 import { existsSync } from 'fs';
 import { readJsonFile, useSettings, writeJsonFile } from '../utils';
 import { VideoMeta } from './VideoMeta';
+import parseISO from 'date-fns/parseISO';
 
 export type DownloadStatus = 'init' | 'broken' | 'downloading' | 'done';
 export type ConverterStatus = 'waiting' | 'converting' | 'done';
@@ -19,11 +20,25 @@ export class Database {
     private _db: DatabaseData = {};
     private _dbFilePath: string;
 
+    private _saveTimeout: NodeJS.Timeout|null = null;
+
     constructor(databaseFileName: string = 'db.json') {
         this._dbFilePath = path.join(useSettings().downloadsDir, databaseFileName);
+        this.reload();
+    }
 
+    private fixDates() {
+        for (let key of Object.keys(this._db)) {
+            if (typeof (this._db as any)[key].convertingStarted === 'string') {
+                (this._db as any)[key].convertingStarted = parseISO((this._db as any)[key].convertingStarted);
+            }
+        }
+    }
+
+    public reload() {
         if (existsSync(this._dbFilePath)) {
             this._db = readJsonFile<DatabaseData>(this._dbFilePath);
+            this.fixDates();
         }
     }
 
@@ -40,6 +55,25 @@ export class Database {
     }
 
     public async save() {
-        return writeJsonFile(this._dbFilePath, this._db, true);
+        clearTimeout(this._saveTimeout!);
+        return new Promise(async (resolve, _) => {
+            try {
+                const rsp = await writeJsonFile(this._dbFilePath, this._db, true);
+                resolve(rsp);
+            } catch {
+                this._saveTimeout = setTimeout(() => this.save(), 1024);
+            }
+        });
+    }
+
+    public async forEach(callback: (entry: Video, index: number) => Promise<void>) {
+        let i = 0;
+        let keys = [];
+
+        do {
+            keys = Object.keys(this._db);
+            // @ts-ignore
+            await callback(this._db[keys[i]], i);
+        } while(keys.length > ++i);
     }
 }

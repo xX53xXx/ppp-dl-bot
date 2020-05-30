@@ -69,8 +69,8 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
 }
 
 let database: Database|null = null;
-export function useDatabase(): Database {
-    if (!database) {
+export function useDatabase(forceReload?: boolean): Database {
+    if (!database || forceReload) {
         database = new Database();
     }
 
