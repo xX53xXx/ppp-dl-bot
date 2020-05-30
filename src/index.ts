@@ -60,7 +60,7 @@ async function run(win: BrowserWindow) {
                 continue;
             }
 
-            const vid = await downloadVideo(id);
+            const vid = await downloadVideo(id, video);
 
             if (vid) {
                 database.set(vid, true);

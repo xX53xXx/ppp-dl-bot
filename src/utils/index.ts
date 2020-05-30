@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, renameSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, renameSync, unlinkSync, copyFileSync } from 'fs';
 import formatDate from 'date-fns/format';
 import sanitize from 'sanitize-filename';
 import * as path from 'path';
@@ -168,7 +168,7 @@ export async function getVideoMetaData(videoId: number): Promise<VideoMeta|null>
     });
 }
 
-export async function downloadVideo(videoId: number): Promise<VideoFile|null> {
+export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
     const settings = useSettings();
     const toutTime: number = settings.videoPartTimeout! * 1024;
     const ts = new Date();
@@ -206,7 +206,13 @@ export async function downloadVideo(videoId: number): Promise<VideoFile|null> {
 
             if (videoMeta.downloadStatus === 'downloading') {
                 videoMeta.downloadStatus = 'done';
-                renameSync(filePath, videoMeta.path!);
+                try {
+                    renameSync(filePath, videoMeta.path!);
+                } catch {
+                    copyFileSync(filePath, videoMeta.path!);
+                    unlinkSync(filePath);
+                }
+                
             } else {
                 videoMeta.downloadStatus = 'broken';
                 unlinkSync(filePath);
@@ -221,8 +227,10 @@ export async function downloadVideo(videoId: number): Promise<VideoFile|null> {
             clearTimeout(timeout!);
             if (data && data.byteLength > 0) {
                 videoMeta.downloadStatus = 'downloading';
+                timeout = setTimeout(fin, toutTime);
+            } else {
+                timeout = setTimeout(fin,  oldVideo?.downloadStatus === "broken" ? 5000 : toutTime);
             }
-            timeout = setTimeout(fin, toutTime);
         };
 
         regEvent(StoreVideoData, ({ data }) => {
