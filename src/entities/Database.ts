@@ -44,7 +44,7 @@ export class Database {
 
     public async set(video: Video, autoSave: boolean = true) {
         this.reload();
-        
+
         this._db[video.id] = video;
 
         if (autoSave) {
@@ -72,10 +72,10 @@ export class Database {
         let i = 0;
         let keys = [];
 
-        do {
+        while(keys.length > i) {
             keys = Object.keys(this._db);
             // @ts-ignore
-            await callback(this._db[keys[i]], i);
-        } while(keys.length > ++i);
+            await callback(this._db[keys[i]], i++);
+        };
     }
 }

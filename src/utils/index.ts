@@ -2,6 +2,8 @@ import { BrowserWindow, ipcMain, Event } from 'electron';
 import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, renameSync, unlinkSync, copyFileSync } from 'fs';
 import formatDate from 'date-fns/format';
 import sanitize from 'sanitize-filename';
+import ping from 'ping';
+import { resolve4 } from 'dns';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { stringify as toQueryArgs } from 'querystring';
@@ -24,6 +26,7 @@ import {
     GetVideoMetaData,
     StoreVideoData
 } from '../consts/events';
+import { rejects } from 'assert';
 
 export function readJsonFile<T>(filePath: PathLike): T {
     if (!existsSync(filePath)) {
@@ -201,6 +204,17 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
         const fh = openSync(filePath, 'ax');
 
         let timeout: NodeJS.Timeout|null = null;
+        let hasFailed: boolean = false;
+
+        const fail = async () => {
+            ipcMain.removeAllListeners(StoreVideoData);
+            closeSync(fh);
+            unlinkSync(filePath);
+            videoMeta.downloadStatus = 'init';
+
+            resolve(await downloadVideo(videoId, oldVideo));
+            return;
+        };
 
         const fin = () => {
             closeSync(fh);
@@ -225,13 +239,31 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
             resolve(videoMeta);
         };
 
+        const checkFin = async () => {
+            clearTimeout(timeout!);
+
+            if (await hasInternet()) {
+                if (hasFailed) {
+                    fail();
+                } else {
+                    fin();
+                }
+            } else {
+                timeout = setTimeout(checkFin, 4096);
+                if (!hasFailed) {
+                    hasFailed = true;
+                    console.error('Error: Internet connection is dead. Waiting ...');
+                }
+            }
+        };
+
         const tick = async (data?: ArrayBuffer) => {
             clearTimeout(timeout!);
             if (data && data.byteLength > 0) {
                 videoMeta.downloadStatus = 'downloading';
-                timeout = setTimeout(fin, toutTime);
+                timeout = setTimeout(checkFin, toutTime);
             } else {
-                timeout = setTimeout(fin,  oldVideo?.downloadStatus === "broken" ? 5000 : toutTime);
+                timeout = setTimeout(checkFin,  oldVideo?.downloadStatus === "broken" ? 5000 : toutTime);
             }
         };
 
@@ -243,6 +275,14 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
         tick();
 
         console.log(`Downloading ${videoMeta.id}#"${videoMeta.name}" ...`);
+    });
+}
+
+export async function hasInternet(testHost: string = 'p-p-p.tv'): Promise<boolean> {
+    return new Promise<boolean>((resolve, _) => {
+        ping.sys.probe(testHost, isAlive => {
+            resolve(isAlive);
+        });
     });
 }
 

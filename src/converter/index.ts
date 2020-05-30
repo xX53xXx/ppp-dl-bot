@@ -50,6 +50,8 @@ async function convert(entry: Video, currentFilePath: string, newFilePath: strin
 
 let runTimeout: any = null;
 const run = async () => {
+    database.reload();
+    
     await database.forEach(async entry => {
         database.reload();
 
@@ -143,9 +145,8 @@ const run = async () => {
         await database.save();
     });
 
-    await database.save();
-
     clearTimeout(runTimeout);
+    console.log('Done. Recheck in 1 minute.');
     runTimeout = setTimeout(run, 60000);
 };
 
