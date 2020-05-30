@@ -96,6 +96,8 @@ const run = async () => {
             if (!(tmp && tmp.convertingStarted && isEqual(tmp.convertingStarted, now))) {
                 printSkippMessage('other service converting OR broken');
                 return;
+            } else {
+                entry = tmp;
             }
         }
 
@@ -116,20 +118,20 @@ const run = async () => {
     
                 if (dropDir === null) {
                     console.log(`Deleting old file: "${oldPath}"`);
-                    unlinkSync(oldPath);
+                    unlinkSync(oldPath!);
                 } else if (dropDir) {
                     mkdirSync(dropDir, { recursive: true });
 
                     if (existsSync(dropDir)) {
-                        const dropFilePath = joinPath(dropDir, getFileName(oldPath));
+                        const dropFilePath = joinPath(dropDir, getFileName(oldPath!));
 
                         console.log(`Dropping old file: "${oldPath}" => "${dropFilePath}"`);
 
                         try {
-                            renameSync(oldPath, dropFilePath);
+                            renameSync(oldPath!, dropFilePath);
                         } catch {
-                            copyFileSync(oldPath, dropFilePath);
-                            unlinkSync(oldPath);
+                            copyFileSync(oldPath!, dropFilePath);
+                            unlinkSync(oldPath!);
                         }
                     }
                 }
