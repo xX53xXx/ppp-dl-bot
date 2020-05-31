@@ -64,7 +64,7 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
         }
 
         if (!settings[settingsFilePath].videoPartTimeout) {
-            settings[settingsFilePath].videoPartTimeout = 30;
+            settings[settingsFilePath].videoPartTimeout = 120;
         }
     }
 
