@@ -15,7 +15,6 @@ import { join as joinPath } from 'path';
 const database = useDatabase();
 const settings = useSettings();
 
-
 async function convert(entry: Video, currentFilePath: string, newFilePath: string) {
     return new Promise((resolve, reject) => {
         ffmpeg({

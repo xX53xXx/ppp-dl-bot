@@ -74,9 +74,9 @@ export class Database {
 
     public async forEach(callback: (entry: Video, index: number) => Promise<void>) {
         let i = 0;
-        let keys = [];
+        let keys = Object.keys(this._db);
 
-        while(keys.length > i) {
+        while (keys.length > i) {
             keys = Object.keys(this._db);
             // @ts-ignore
             await callback(this._db[keys[i]], i++);
