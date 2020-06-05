@@ -11,6 +11,8 @@ export const GetVideoMetaData = 'get-video-meta-data';
 // export const DownloadVideo = 'download-video';
 export const StoreVideoData = 'store-video-data';
 
+export const StartVideoDownload = 'start-video-download';
+
 export type NavigationResponse = {
     location: Location;
     username: string|null;
@@ -37,4 +39,5 @@ export type EventResponseParams = {
         dataURL: string;
         data: ArrayBuffer;
     };
+    [StartVideoDownload]: string; // url
 };

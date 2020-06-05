@@ -38,12 +38,7 @@ regEvent(PageStructureError, message => {
 async function run(win: BrowserWindow) {
     try {
 
-        console.warn('IMPORTANT: The *.TS files are in a bad codec. A converter software will be implemented soon.');
-        console.warn('You can also use FFMPEG by yourself: ffmpeg -i <video-name>.TS -c:a aac -c:v h264 -preset veryslow -level 6.2 <video-name>.mp4');
-
-        console.log('');
-
-        console.warn('IMPORTANT: Do not seek or navigate! Click protection, fullscreen and unmute cooming soon.');
+        console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
 
         mkdirSync(useSettings().downloadsDir, { recursive: true });
 
@@ -67,8 +62,7 @@ async function run(win: BrowserWindow) {
             }
         }
 
-        console.warn('IMPORTANT: The *.TS files are in a bad codec. A converter software will be implemented soon.');
-        console.warn('You can also use FFMPEG by yourself: ffmpeg -i <video-name>.TS -c:a aac -c:v h264 -preset veryslow -level 6.2 <video-name>.mp4');
+        console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
         console.log('Done.');
         
         win.close();

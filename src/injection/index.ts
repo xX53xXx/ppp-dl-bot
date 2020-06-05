@@ -3,7 +3,8 @@ import {
     Authenticate,
     GetLastVideoId,
     GetVideoMetaData,
-    StoreVideoData,
+    // StoreVideoData,
+    StartVideoDownload
 } from '../consts/events';
 
 import {
@@ -20,6 +21,7 @@ import {
 } from '../entities';
 
 // Hack the stream
+let _flag: string | null = null;
 const $XMLHttpRequest = window.XMLHttpRequest;
 // @ts-ignore
 window.XMLHttpRequest = function() {
@@ -44,18 +46,17 @@ window.XMLHttpRequest = function() {
                     if (typeof v === 'function') {
                         debug && console.log(`XHR property "${prop}" is set and gets function: `, v.toString());
                         xhr[prop] = (e: any) => {
-                            if (e.type === 'readystatechange' && ths.getResponseHeader('Content-Type') === 'video/MP2T') {
-                                const buffer: ArrayBuffer = e?.target?.response;
-                                if (buffer) {
-                                    sendEvent(StoreVideoData, {
-                                        dataURL: e?.target?.responseURL,
-                                        data: buffer
-                                    });
+                            if (e.type === 'readystatechange' && ths.getResponseHeader('Content-Type') === 'video/MP2T' && e?.target?.responseURL) {
+                                const mt = /^(https:\/\/.+?mp4:.+?\/media_.+?_)(\d+)(\.ts)$/ig.exec(e?.target?.responseURL);
+                                // const id = mt ? parseInt(mt[2], 10) : -1;
+
+                                if (mt && _flag !== mt[1]) {
+                                    _flag = mt[1];
+                                    sendEvent(StartVideoDownload, e.target.responseURL);
                                 }
-                                v(e);
-                            } else {
-                                v(e);
                             }
+
+                            v(e);
                         };
                     } else {
                         debug && console.log(`XHR property "${prop}" is set and gets value: `, v);
