@@ -4,5 +4,7 @@
         "password": ""
     },
     "downloadsDir": "./out",
-    "tempDir": "./temp"
+    "converter": {
+        "dropDir": "./temp"
+    }
 }

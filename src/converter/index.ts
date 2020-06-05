@@ -15,9 +15,11 @@ import { join as joinPath } from 'path';
 const database = useDatabase();
 const settings = useSettings();
 
-
+let currentProcessingVideo: Video|null = null;
 async function convert(entry: Video, currentFilePath: string, newFilePath: string) {
     return new Promise((resolve, reject) => {
+        currentProcessingVideo = entry;
+
         ffmpeg({
             source: settings.converter?.ffmpegPath
         })
@@ -34,9 +36,13 @@ async function convert(entry: Video, currentFilePath: string, newFilePath: strin
         })
         .on('error', (err) => {
             console.error(err);
+            entry.converterStatus = 'broken';
+            currentProcessingVideo = null;
         })
         .on('end', (stdout, stderr) => {
             console.log(`Converting of ${entry.id}#"${entry.name}": "${entry.path}" => "${newFilePath}" is done.`);
+            entry.converterStatus = 'done';
+            currentProcessingVideo = null;
             resolve();
         })
         .input(currentFilePath)
@@ -44,8 +50,59 @@ async function convert(entry: Video, currentFilePath: string, newFilePath: strin
         .addOption('-c:a aac')
         .addOption('-preset veryslow')
         .addOption('-level 6.2')
+        .addOption('-y')
         .saveToFile(newFilePath);
     });
+}
+
+// TODO: Why this do not work?
+process.on('exit', async code => {
+    if (currentProcessingVideo) {
+        currentProcessingVideo.converterStatus = 'aborted';
+        database.set(currentProcessingVideo);
+        await database.save();
+    }
+
+    console.log('Process exit with code: ', code);
+});
+
+/**
+ * Drop file.
+ * @param dropAnyway If true and no drop is activated, the files will be renamed with a timestamp append.
+ */
+function dropFile(targetFilePath: string, now: Date = new Date(), dropAnyway: boolean = false) {
+    const forceDrop = () => {
+        const dropFilePath = targetFilePath.replace(/(.+?)(\.mp4|\.ts)$/ig, `$1.${dateFormat(now, 'T')}$2`);
+        console.log(`Force-dropping old file: "${targetFilePath}" => "${dropFilePath}"`);
+        renameSync(targetFilePath, dropFilePath);
+    };
+
+    const dropDir = settings.converter?.dropDir;
+    
+    if (dropDir === null) {
+        console.log(`Deleting old file: "${targetFilePath}"`);
+        unlinkSync(targetFilePath);
+    } else if (dropDir) {
+        mkdirSync(dropDir, { recursive: true });
+
+        if (existsSync(dropDir)) {
+            const dropFilePath = joinPath(dropDir, getFileName(targetFilePath));
+
+            console.log(`Dropping old file: "${targetFilePath}" => "${dropFilePath}"`);
+
+            try {
+                renameSync(targetFilePath, dropFilePath);
+            } catch {
+                copyFileSync(targetFilePath, dropFilePath);
+                unlinkSync(targetFilePath);
+            }
+        } else {
+            console.warn(`WARNING: Drop dir "${dropDir}" do not exists!`);
+            forceDrop();
+        }
+    } else if (dropAnyway) {
+        forceDrop();
+    }
 }
 
 let runTimeout: any = null;
@@ -106,7 +163,7 @@ const run = async () => {
         const newFilePath = currentFilePath.replace(/\.TS$/ig, '.mp4');
 
         if (existsSync(newFilePath)) {
-            renameSync(newFilePath, newFilePath.replace(/(.+?)(\.mp4)$/ig, `$1.${dateFormat(now, 'T')}$2`));
+            dropFile(newFilePath, now, true);
         }
 
         try {
@@ -115,27 +172,7 @@ const run = async () => {
             entry.path = './' + getFileName(newFilePath);
 
             if (currentFilePath !== newFilePath) {
-                const dropDir = settings.converter?.dropDir;
-    
-                if (dropDir === null) {
-                    console.log(`Deleting old file: "${currentFilePath}"`);
-                    unlinkSync(currentFilePath!);
-                } else if (dropDir) {
-                    mkdirSync(dropDir, { recursive: true });
-
-                    if (existsSync(dropDir)) {
-                        const dropFilePath = joinPath(dropDir, getFileName(currentFilePath!));
-
-                        console.log(`Dropping old file: "${currentFilePath}" => "${dropFilePath}"`);
-
-                        try {
-                            renameSync(currentFilePath!, dropFilePath);
-                        } catch {
-                            copyFileSync(currentFilePath!, dropFilePath);
-                            unlinkSync(currentFilePath!);
-                        }
-                    }
-                }
+                dropFile(currentFilePath, now);
             }
         } catch (err) {
             console.error('Error: Something went wrong.', err, entry);

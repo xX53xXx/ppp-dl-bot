@@ -25,6 +25,8 @@
     ],
     "exclude": [
       "./src/public/",
-      "./node_modules/"
+      "./node_modules/",
+      "./temp/",
+      "./out/"
     ]
   }

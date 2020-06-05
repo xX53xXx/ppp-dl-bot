@@ -1,9 +1,9 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, renameSync, unlinkSync, copyFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync } from 'fs';
 import formatDate from 'date-fns/format';
 import sanitize from 'sanitize-filename';
 import ping from 'ping';
-import { resolve4 } from 'dns';
+import axios from 'axios';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { stringify as toQueryArgs } from 'querystring';
@@ -24,9 +24,8 @@ import {
     EventResponseParams,
     GetLastVideoId,
     GetVideoMetaData,
-    StoreVideoData
+    StartVideoDownload
 } from '../consts/events';
-import { rejects } from 'assert';
 
 export function readJsonFile<T>(filePath: PathLike): T {
     if (!existsSync(filePath)) {
@@ -64,7 +63,7 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
         }
 
         if (!settings[settingsFilePath].videoPartTimeout) {
-            settings[settingsFilePath].videoPartTimeout = 120;
+            settings[settingsFilePath].videoPartTimeout = 10;
         }
     }
 
@@ -171,111 +170,169 @@ export async function getVideoMetaData(videoId: number): Promise<VideoMeta|null>
     });
 }
 
+export function title2fileName(title: string): string {
+    return sanitize(title, {
+        replacement: (_: string) => {
+            return '-';
+        }
+    }).replace(/\ +/g, ' ').replace(/\-+/g, '-').trim();
+}
+
 export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
     const settings = useSettings();
     const toutTime: number = settings.videoPartTimeout! * 1024;
-    const ts = new Date();
-    mkdirSync(settings.tempDir!, { recursive: true });
+    
+    mkdirSync(settings.downloadsDir!, { recursive: true });
 
-    const fileName = formatDate(ts, 'T') + '.TS';
-    const filePath = path.join(settings.tempDir!, fileName);
+    return new Promise<VideoFile|null>((resolve, reject) => (async () => {
+        try {
+            await waitForInternet()
 
-    return new Promise<VideoFile|null>(async (resolve, reject) => {
-        const metaData = await getVideoMetaData(videoId);
+            const metaData = await getVideoMetaData(videoId);
 
-        if (!metaData) {
-            resolve(null);
-            return;
-        }
+            const [ fileName, filePath ] = (() => {
+                let fileName;
+                let filePath;
 
-        const readyFileName = sanitize(metaData?.name!, {
-            replacement: (_: string) => {
-                return '-';
+                let i = 1;
+
+                do {
+                    fileName = title2fileName(metaData?.name!) + (i <= 1 ? '' : ' ' + i) + '.TS';
+                    filePath = path.join(settings.downloadsDir, fileName);
+                } while (existsSync(filePath) && ++i);
+
+                return [ fileName, filePath ];
+            })();
+
+            if (!metaData) {
+                resolve(null);
+                return;
             }
-        }).replace(/\ +/g, ' ').replace(/\-+/g, '-').trim() + '.TS';
-        const videoMeta: VideoFile = {
-            ...metaData,
-            downloadStatus: 'init',
-            path: './' + readyFileName
-        } as VideoFile;
 
-        const finalPathName = path.join(settings.downloadsDir, readyFileName);
+            const videoMeta: VideoFile = {
+                ...metaData,
+                downloadStatus: 'init',
+                path: './' + fileName
+            } as VideoFile;
 
-        const fh = openSync(filePath, 'ax');
-
-        let timeout: NodeJS.Timeout|null = null;
-        let hasFailed: boolean = false;
-
-        const fail = async () => {
-            ipcMain.removeAllListeners(StoreVideoData);
-            closeSync(fh);
-            unlinkSync(filePath);
-            videoMeta.downloadStatus = 'init';
-
-            resolve(await downloadVideo(videoId, oldVideo));
-            return;
-        };
-
-        const fin = () => {
-            closeSync(fh);
-            ipcMain.removeAllListeners(StoreVideoData);
-
-            if (videoMeta.downloadStatus === 'downloading') {
-                videoMeta.downloadStatus = 'done';
+            const loadStream = async (url: string, id: number): Promise<Uint8Array|null> => {
                 try {
-                    renameSync(filePath, finalPathName);
-                } catch {
-                    copyFileSync(filePath, finalPathName);
-                    unlinkSync(filePath);
+                    await waitForInternet();
+
+                    process.stdout.write(`Info: Downloading ${videoMeta.id}#"${videoMeta.name}" part: ` + id + '                                                                 \r');
+                    const rsp = await axios.get(url, { responseType: 'arraybuffer', timeout: 4096 });
+                    
+                    
+                    if (rsp.data) {
+                        return new Uint8Array(rsp.data);
+                    } else {
+                        return null;
+                    }
+                } catch (err) {
+                    if (!err) return await loadStream(url, id);
+
+                    if (err.code && err.code.toUpperCase() !== 'ETIMEDOUT') {
+                        if (!await waitForInternet()) {
+                            return null;
+                        } else {
+                            return await loadStream(url, id);
+                        }
+                    } else if (err.code && err.code.toUpperCase() === 'ETIMEDOUT') {
+                        process.stdout.write('Bad internet, waiting ...\r');
+                        return await loadStream(url, id);
+                    } else if (err.response.status === 404) {
+                        return null;
+                    } else {
+                        console.error('Error: Unknown error, repeating...', err, filePath);
+                        return await loadStream(url, id);
+                    }
                 }
-                
-            } else {
-                videoMeta.downloadStatus = 'broken';
-                unlinkSync(filePath);
-            }
+            };
+            
+            let interval = setInterval(async () => {
+                ipcMain.removeAllListeners(StartVideoDownload);
 
-            console.log(`Download done for ${videoMeta.id}#"${videoMeta.name}" -> ${videoMeta.downloadStatus}`);
-
-            resolve(videoMeta);
-        };
-
-        const checkFin = async () => {
-            clearTimeout(timeout!);
-
-            if (await hasInternet()) {
-                if (hasFailed) {
-                    fail();
+                if (!await waitForInternet()) {
+                    clearInterval(interval);
+                    videoMeta.downloadStatus = 'broken';
+                    console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
+                    resolve(videoMeta);
                 } else {
-                    fin();
+                    useWindow().reload();
+                    regEventOnce(StartVideoDownload, onStartVideoDownload);
                 }
-            } else {
-                timeout = setTimeout(checkFin, 4096);
-                if (!hasFailed) {
-                    hasFailed = true;
-                    console.error('Error: Internet connection is dead. Waiting ...');
+            }, toutTime);
+
+            const onStartVideoDownload = async (url: string) => {
+                clearInterval(interval);
+
+                const mt = /^(https:\/\/.+?mp4:.+?\/media_.+?_)(\d+)(\.ts)$/ig.exec(url);
+
+                if (!mt) {
+                    reject('Error: Unexpected error, invalid stream url format.');
+                    return;
                 }
-            }
-        };
 
-        const tick = async (data?: ArrayBuffer) => {
-            clearTimeout(timeout!);
-            if (data && data.byteLength > 0) {
-                videoMeta.downloadStatus = 'downloading';
-                timeout = setTimeout(checkFin, toutTime);
-            } else {
-                timeout = setTimeout(checkFin,  oldVideo?.downloadStatus === "broken" ? 5000 : toutTime);
-            }
-        };
+                const data: Uint8Array[] = [];
 
-        regEvent(StoreVideoData, ({ data }) => {
-            tick(data);
-            writeSync(fh, new Uint8Array(data));
-        });
+                for (let id = 1; id > 0; id++) {
+                    const response = await loadStream(`${mt[1]}${id}${mt[3]}`, id);
 
-        tick();
+                    if (response === null) {
+                        if (data.length > 0) {
+                            try {
+                                const fh = openSync(filePath, 'ax');
 
-        console.log(`Downloading ${videoMeta.id}#"${videoMeta.name}" ...`);
-    });
+                                for (let pkg of data) {
+                                    writeSync(fh, new Uint8Array(pkg));
+                                }
+                                
+                                closeSync(fh);
+
+                                videoMeta.downloadStatus = 'done';
+
+                                console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" downloaded to "${videoMeta.path}"`);
+                            } catch (err) {
+                                reject(err);
+                                break;
+                            }
+                        } else {
+                            console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
+                            videoMeta.downloadStatus = 'broken';
+                        }
+                        
+                        videoMeta.stream= {
+                            initialStreamUrl: url,
+                            maxPartId: id
+                        };
+
+                        id = -1;
+                        resolve(videoMeta);
+                        break;
+                    } else {
+                        videoMeta.downloadStatus = 'downloading';
+                        data.push(response);
+                    }
+                }
+            };
+
+            regEventOnce(StartVideoDownload, onStartVideoDownload);
+        } catch (err) {
+            reject(err);
+        }
+    })());
+}
+
+export async function waitForInternet(): Promise<boolean> {
+    let hadInternetError: boolean = false;
+
+    while (!await hasInternet()) {
+        hadInternetError = true;
+        process.stdout.write('No internet, waiting ...                                                                                                      \r');
+        await new Promise((r, _) => setTimeout(r, 2048));
+    }
+
+    return hadInternetError;
 }
 
 export async function hasInternet(testHost: string = 'p-p-p.tv'): Promise<boolean> {

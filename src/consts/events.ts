@@ -8,8 +8,7 @@ export const Authenticate = 'authenticate';
 export const GetLastVideoId = 'get-last-video-id';
 export const GetVideoMetaData = 'get-video-meta-data';
 
-// export const DownloadVideo = 'download-video';
-export const StoreVideoData = 'store-video-data';
+export const StartVideoDownload = 'start-video-download';
 
 export type NavigationResponse = {
     location: Location;
@@ -23,7 +22,6 @@ export type EventParams = {
     [Authenticate]: Account; // credentials
     [GetLastVideoId]: undefined;
     [GetVideoMetaData]: number;
-    // [DownloadVideo]: VideoMeta;
 };
 
 // From browser to main
@@ -33,8 +31,5 @@ export type EventResponseParams = {
     [PageStructureError]: string;
     [GetLastVideoId]: number;
     [GetVideoMetaData]: VideoMeta|null;
-    [StoreVideoData]: {
-        dataURL: string;
-        data: ArrayBuffer;
-    };
+    [StartVideoDownload]: string; // url
 };
