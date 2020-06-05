@@ -5,7 +5,7 @@ import { VideoMeta } from './VideoMeta';
 import parseISO from 'date-fns/parseISO';
 
 export type DownloadStatus = 'init' | 'broken' | 'downloading' | 'done';
-export type ConverterStatus = 'waiting' | 'converting' | 'done';
+export type ConverterStatus = 'waiting' | 'converting' | 'broken' | 'aborted' | 'done';
 
 export interface Video extends VideoMeta {
     downloadStatus: DownloadStatus;

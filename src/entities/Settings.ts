@@ -15,7 +15,9 @@ export interface ConverterSettings {
 export interface Settings {
     account: Account;
     downloadsDir: string;
-    tempDir?: string; // default: system temp dir
     videoPartTimeout?: number; // in seconds, default: 30
     converter?: ConverterSettings;
+
+    // Deprecated: Maybe will be removed soon
+    tempDir?: string; // default: system temp dir
 }
