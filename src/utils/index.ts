@@ -64,7 +64,7 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
         }
 
         if (!settings[settingsFilePath].videoPartTimeout) {
-            settings[settingsFilePath].videoPartTimeout = 5;
+            settings[settingsFilePath].videoPartTimeout = 10;
         }
     }
 
@@ -171,148 +171,158 @@ export async function getVideoMetaData(videoId: number): Promise<VideoMeta|null>
     });
 }
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-let _isDownloading = false;
-export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
-    if (_isDownloading) {
-        console.error('Broken!!!!');
-        return null;
-    }
+export function title2fileName(title: string): string {
+    return sanitize(title, {
+        replacement: (_: string) => {
+            return '-';
+        }
+    }).replace(/\ +/g, ' ').replace(/\-+/g, '-').trim();
+}
 
+export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
     const settings = useSettings();
     const toutTime: number = settings.videoPartTimeout! * 1024;
-    const ts = new Date();
     
-    mkdirSync(settings.tempDir!, { recursive: true });
+    mkdirSync(settings.downloadsDir!, { recursive: true });
 
-    const fileName = formatDate(ts, 'T') + '.TS';
-    const filePath = path.join(settings.tempDir!, fileName);
-
-    return new Promise<VideoFile|null>(async (resolve, _) => {
+    return new Promise<VideoFile|null>((resolve, reject) => (async () => {
         try {
+            await waitForInternet()
+
             const metaData = await getVideoMetaData(videoId);
+
+            const fileName = title2fileName(metaData?.name!) + '.TS';
+            const filePath = path.join(settings.downloadsDir, fileName);
 
             if (!metaData) {
                 resolve(null);
                 return;
             }
 
-            const readyFileName = sanitize(metaData?.name!, {
-                replacement: (_: string) => {
-                    return '-';
-                }
-            }).replace(/\ +/g, ' ').replace(/\-+/g, '-').trim() + '.TS';
             const videoMeta: VideoFile = {
                 ...metaData,
                 downloadStatus: 'init',
-                path: './' + readyFileName
+                path: './' + fileName
             } as VideoFile;
 
-            const finalPathName = path.join(settings.downloadsDir, readyFileName);
+            const loadStream = async (url: string, id: number): Promise<Uint8Array|null> => {
+                try {
+                    await waitForInternet();
 
-            const fh = openSync(filePath, 'ax');
-
-            const fin = () => {
-                closeSync(fh);
-                if (videoMeta.downloadStatus === 'downloading') {
-                    videoMeta.downloadStatus = 'done';
-                    try {
-                        renameSync(filePath, finalPathName);
-                    } catch {
-                        copyFileSync(filePath, finalPathName);
-                        unlinkSync(filePath);
-                    }
+                    process.stdout.write(`Info: Downloading ${videoMeta.id}#"${videoMeta.name}" part: ` + id + '                                                                 \r');
+                    const rsp = await axios.get(url, { responseType: 'arraybuffer', timeout: 4096 });
                     
-                } else {
-                    videoMeta.downloadStatus = 'broken';
-                    unlinkSync(filePath);
+                    
+                    if (rsp.data) {
+                        return new Uint8Array(rsp.data);
+                    } else {
+                        return null;
+                    }
+                } catch (err) {
+                    if (!err) return await loadStream(url, id);
+
+                    if (err.code && err.code.toUpperCase() !== 'ETIMEDOUT') {
+                        if (!await waitForInternet()) {
+                            return null;
+                        } else {
+                            return await loadStream(url, id);
+                        }
+                    } else if (err.code && err.code.toUpperCase() === 'ETIMEDOUT') {
+                        process.stdout.write('Bad internet, waiting ...\r');
+                        return await loadStream(url, id);
+                    } else if (err.response.status === 404) {
+                        return null;
+                    } else {
+                        console.error('Error: Unknown error, repeating...', err, filePath);
+                        return await loadStream(url, id);
+                    }
                 }
-
-                console.log(`Download done for ${videoMeta.id}#"${videoMeta.name}" -> ${videoMeta.downloadStatus}`);
-
-                _isDownloading = false;
-
-                resolve(videoMeta);
             };
+            
+            let interval = setInterval(async () => {
+                ipcMain.removeAllListeners(StartVideoDownload);
 
-            let timeout = setInterval(() => {
-                fin();
+                if (!await waitForInternet()) {
+                    clearInterval(interval);
+                    videoMeta.downloadStatus = 'broken';
+                    console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
+                    resolve(videoMeta);
+                } else {
+                    useWindow().reload();
+                    regEventOnce(StartVideoDownload, onStartVideoDownload);
+                }
             }, toutTime);
 
-            
-            regEventOnce(StartVideoDownload, async url => {
-                if (_isDownloading) {
-                    return;
-                } else {
-                    _isDownloading = true;
-                }
-
-                clearTimeout(timeout);
-
-                console.log(url);
+            const onStartVideoDownload = async (url: string) => {
+                clearInterval(interval);
 
                 const mt = /^(https:\/\/.+?mp4:.+?\/media_.+?_)(\d+)(\.ts)$/ig.exec(url);
 
-                if (mt) {
-                    let run = true;
-                    let id = parseInt(mt[2], 10);
-
-                    do {
-                        try {
-                            while (!await hasInternet()) {
-                                process.stdout.write('No internet, waiting ...\r');
-                                await new Promise((r, _) => setTimeout(r, 2048));
-                            }
-
-                            
-                            process.stdout.write('Downloading part: ' + id + '                                                                 \r');
-                            const rsp = await axios.get(`${mt[1]}${id}${mt[3]}`, { responseType: 'arraybuffer', timeout: 4096 });
-                            
-                            
-                            if (rsp.data) {
-                                writeSync(fh, new Uint8Array(rsp.data));
-                                videoMeta.downloadStatus = 'downloading';
-                                id++;
-                                await new Promise((r, _) => setTimeout(r, 256)); // Wait to prevent ddos on service and let system finish up writing job
-                            } else {
-                                run = false;
-                            }
-                        } catch (err) {
-                            if (!err) continue;
-
-                            if (err.code && err.code.toUpperCase() !== 'ETIMEDOUT') {
-                                let internetError: boolean = false;
-
-                                while (!await hasInternet()) {
-                                    internetError = true;
-                                    process.stdout.write('No internet, waiting ...\r');
-                                    await new Promise((r, _) => setTimeout(r, 2048));
-                                }
-
-                                if (!internetError) {
-                                    run = false;
-                                }
-                            } else if (err.code && err.code.toUpperCase() === 'ETIMEDOUT') {
-                                process.stdout.write('Bad internet, waiting ...\r');
-                            } else if (err.response.status === 404) {
-                                run = false;
-                            } else {
-                                console.error('Error: Unknown error, repeating...', err, filePath);
-                            }
-                        }
-                    } while (run);
-                    
-                    fin();
+                if (!mt) {
+                    reject('Error: Unexpected error, invalid stream url format.');
+                    return;
                 }
-            });
 
-            console.log(`Downloading ${videoMeta.id}#"${videoMeta.name}" ...`);
+                const data: Uint8Array[] = [];
+
+                for (let id = 1; id > 0; id++) {
+                    const response = await loadStream(`${mt[1]}${id}${mt[3]}`, id);
+
+                    if (response === null) {
+                        if (data.length > 0) {
+                            try {
+                                const fh = openSync(filePath, 'ax');
+
+                                for (let pkg of data) {
+                                    writeSync(fh, new Uint8Array(pkg));
+                                }
+                                
+                                closeSync(fh);
+
+                                videoMeta.downloadStatus = 'done';
+
+                                console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" downloaded to "${videoMeta.path}"`);
+                            } catch (err) {
+                                reject(err);
+                                break;
+                            }
+                        } else {
+                            console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
+                            videoMeta.downloadStatus = 'broken';
+                        }
+                        
+                        videoMeta.stream= {
+                            initialStreamUrl: url,
+                            maxPartId: id
+                        };
+
+                        id = -1;
+                        resolve(videoMeta);
+                        break;
+                    } else {
+                        videoMeta.downloadStatus = 'downloading';
+                        data.push(response);
+                    }
+                }
+            };
+
+            regEventOnce(StartVideoDownload, onStartVideoDownload);
         } catch (err) {
-            console.error(err);
-            _isDownloading = false;
-            return null;
+            reject(err);
         }
-    });
+    })());
+}
+
+export async function waitForInternet(): Promise<boolean> {
+    let hadInternetError: boolean = false;
+
+    while (!await hasInternet()) {
+        hadInternetError = true;
+        process.stdout.write('No internet, waiting ...                                                                                                      \r');
+        await new Promise((r, _) => setTimeout(r, 2048));
+    }
+
+    return hadInternetError;
 }
 
 export async function hasInternet(testHost: string = 'p-p-p.tv'): Promise<boolean> {

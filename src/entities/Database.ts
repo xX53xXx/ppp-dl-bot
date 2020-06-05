@@ -12,6 +12,10 @@ export interface Video extends VideoMeta {
     converterStatus?: ConverterStatus;
     convertingStarted?: Date;
     path?: string;
+    stream?: {
+        initialStreamUrl: string;
+        maxPartId: number;
+    }
 }
 
 type DatabaseData = {[videoId: number]: Video};

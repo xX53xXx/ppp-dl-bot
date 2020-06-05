@@ -5,6 +5,8 @@ import { URL } from './consts';
 import { authenticate, $regWindow, regEvent, getLastVideoId, useDatabase, useSettings, downloadVideo } from './utils';
 import { PageStructureError } from './consts/events';
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 app.on('ready', async () => {
     const win = new BrowserWindow({
         width: 1366,
@@ -39,6 +41,8 @@ async function run(win: BrowserWindow) {
     try {
 
         console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
+        console.log('You can run both in parallel. Run "yarn convert" in a second terminal window/session.');
+        console.log('');
 
         mkdirSync(useSettings().downloadsDir, { recursive: true });
 
@@ -55,13 +59,28 @@ async function run(win: BrowserWindow) {
                 continue;
             }
 
-            const vid = await downloadVideo(id, video);
+            for (let i = 0; i < 3; i++) {
+                try {
+                    const vid = await downloadVideo(id, video);
+    
+                    if (vid) {
+                        database.set(vid, true);
+                    }
 
-            if (vid) {
-                database.set(vid, true);
+                    break;
+                } catch (err) {
+                    if (i >= 2) {
+                        console.error('Error: Faild downloading video ' + id + '!', err);
+                        console.log('Continue with next.');
+                    } else {
+                        console.error('Error: Faild downloading video ' + id + '! Retry.');
+                    }
+                }
             }
+            
         }
 
+        console.log('');
         console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
         console.log('Done.');
         
