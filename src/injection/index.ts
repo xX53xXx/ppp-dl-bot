@@ -3,7 +3,6 @@ import {
     Authenticate,
     GetLastVideoId,
     GetVideoMetaData,
-    // StoreVideoData,
     StartVideoDownload
 } from '../consts/events';
 

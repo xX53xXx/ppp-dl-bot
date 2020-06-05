@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, renameSync, unlinkSync, copyFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync } from 'fs';
 import formatDate from 'date-fns/format';
 import sanitize from 'sanitize-filename';
 import ping from 'ping';
@@ -24,7 +24,6 @@ import {
     EventResponseParams,
     GetLastVideoId,
     GetVideoMetaData,
-    // StoreVideoData,
     StartVideoDownload
 } from '../consts/events';
 
@@ -191,8 +190,19 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
 
             const metaData = await getVideoMetaData(videoId);
 
-            const fileName = title2fileName(metaData?.name!) + '.TS';
-            const filePath = path.join(settings.downloadsDir, fileName);
+            const [ fileName, filePath ] = (() => {
+                let fileName;
+                let filePath;
+
+                let i = 1;
+
+                do {
+                    fileName = title2fileName(metaData?.name!) + (i <= 1 ? '' : ' ' + i) + '.TS';
+                    filePath = path.join(settings.downloadsDir, fileName);
+                } while (existsSync(filePath) && ++i);
+
+                return [ fileName, filePath ];
+            })();
 
             if (!metaData) {
                 resolve(null);
