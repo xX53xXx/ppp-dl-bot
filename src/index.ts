@@ -65,6 +65,8 @@ async function run(win: BrowserWindow) {
     
                     if (vid) {
                         database.set(vid, true);
+                    } else {
+                        console.log(`Info: ${id}# is broken.`);
                     }
 
                     break;

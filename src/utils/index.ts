@@ -190,6 +190,11 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
 
             const metaData = await getVideoMetaData(videoId);
 
+            if (!(metaData && metaData.name && metaData.name.length > 0)) {
+                resolve(null);
+                return;
+            }
+
             const [ fileName, filePath ] = (() => {
                 let fileName;
                 let filePath;

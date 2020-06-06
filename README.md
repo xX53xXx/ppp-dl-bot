@@ -17,7 +17,8 @@ Download videos from p-p-p.tv. It uses the video stream not the download link to
        -  (Put in your credentials and destination directory)
     -  Run `yarn install` in project dir
     -  Run `yarn start` in project dir // Run `yarn start --unmute` to start downloader unmuted
-    -  Run `yarn convert` after downloads are finished on in a secodn terminal window/session to convert the video files to a usefull codec.
+    -  Run `yarn convert` after downloads are finished.
+       -  WARNING: At time it is not recommended to run the converter in parallel with the download process or with an other converter. (WIP)
 
 # Settings documentation
 Documentation which possibilities you have in the `settings.json` file.
