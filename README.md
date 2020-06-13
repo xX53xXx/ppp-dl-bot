@@ -18,7 +18,7 @@ Download videos from p-p-p.tv. It uses the video stream not the download link to
     -  Run `yarn install` in project dir
     -  Run `yarn start` in project dir // Run `yarn start --unmute` to start downloader unmuted
     -  Run `yarn convert` after downloads are finished.
-       -  WARNING: At time it is not recommended to run the converter in parallel with the download process or with an other converter. (WIP)
+       -  Info: Multiple converter instances are allowed, but do not run multiple downloader instances with the same `downloadsDir` in settings.
 
 # Settings documentation
 Documentation which possibilities you have in the `settings.json` file.

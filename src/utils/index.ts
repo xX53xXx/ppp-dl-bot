@@ -156,7 +156,12 @@ export async function getLastVideoId(): Promise<number> {
 }
 
 export async function getVideoMetaData(videoId: number): Promise<VideoMeta|null> {
-    await navigate(Video, { id: videoId });
+    const rsp = await navigate(Video, { id: videoId });
+
+    if (rsp.location.pathname === '/login.php') {
+        await authenticate();
+        await navigate(Video, { id: videoId });
+    }
 
     return new Promise<VideoMeta|null>((resolve, _) => {
         regEventOnce(GetVideoMetaData, metaData => {
