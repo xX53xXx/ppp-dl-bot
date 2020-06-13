@@ -4,7 +4,7 @@ import { readJsonFile, writeJsonFile } from '../utils';
 import { VideoMeta } from './VideoMeta';
 import parseISO from 'date-fns/parseISO';
 
-export type DownloadStatus = 'init' | 'broken' | 'downloading' | 'done';
+export type DownloadStatus = 'init' | 'broken' | 'downloading' | 'repeat' | 'done';
 export type ConverterStatus = 'waiting' | 'converting' | 'broken' | 'aborted' | 'done';
 
 export interface Video extends VideoMeta {
@@ -74,6 +74,13 @@ export class Database {
             await cmd();
             this.unlock();
         }
+    }
+
+    public async setBroken(videoId: number, autoSave: boolean = true) {
+        this.set({
+            id: videoId,
+            downloadStatus: 'broken'
+        }, autoSave);
     }
 
     public get(id: number): Video|undefined {

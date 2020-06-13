@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { mkdirSync } from 'fs';
 import { URL } from './consts';
-import { authenticate, $regWindow, regEvent, getLastVideoId, useDatabase, useSettings, downloadVideo } from './utils';
+import { authenticate, $regWindow, regEvent, getLastVideoId, useDatabase, useSettings, downloadVideo, onPanicCleanup } from './utils';
 import { PageStructureError } from './consts/events';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -29,6 +29,17 @@ app.on('ready', async () => {
     await win.loadURL(URL);
 
     $regWindow(win);
+
+    win.on('close', () => {
+        process.exit();
+    });
+
+    win.on('close', onPanicCleanup);
+    process.on('beforeExit', onPanicCleanup);
+    process.on('exit', onPanicCleanup);
+    process.on('SIGKILL', onPanicCleanup);
+    process.on('SIGTERM', onPanicCleanup);
+
     run(win);
 });
 
@@ -38,13 +49,11 @@ regEvent(PageStructureError, message => {
 });
 
 async function run(win: BrowserWindow) {
-    win.on('close', () => {
-        process.exit();
-    });
-
     try {
 
         const settings = await useSettings();
+
+        const ignoreBroken = (process.argv.indexOf('--ignore-broken') > 0);
 
         console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
         console.log('You can run both in parallel. Run "yarn convert" in a second terminal window/session.');
@@ -65,6 +74,16 @@ async function run(win: BrowserWindow) {
                 continue;
             }
 
+            if (ignoreBroken && video && video.downloadStatus === 'broken') {
+                if (video.name) {
+                    console.log(`Info: ${id}#"${video.name}" is broken -> skipped`);
+                } else {
+                    console.log(`Info: ${id} is broken -> skipped`);
+                }
+                
+                continue;
+            }
+
             for (let i = 0; i < 3; i++) {
                 try {
                     const vid = await downloadVideo(id, video);
@@ -72,6 +91,7 @@ async function run(win: BrowserWindow) {
                     if (vid) {
                         database.set(vid, true);
                     } else {
+                        database.setBroken(id, true);
                         console.log(`Info: ${id}# is broken.`);
                     }
 

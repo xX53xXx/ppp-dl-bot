@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, unlinkSync, fsync, renameSync } from 'fs';
 import sanitize from 'sanitize-filename';
 import ping from 'ping';
 import axios from 'axios';
@@ -184,10 +184,28 @@ export function title2fileName(title: string): string {
     }).replace(/\ +/g, ' ').replace(/\-+/g, '-').trim();
 }
 
+let _onPanicCleanups: Function[] = [];
+export function onPanicCleanup() {
+    for (let fnc of _onPanicCleanups) {
+        fnc();
+    }
+}
+
+export function $regOnPanicCleanup(fnc: Function) {
+    if (_onPanicCleanups.indexOf(fnc) < 0) {
+        _onPanicCleanups.push(fnc);
+    }
+}
+
+export function $unregOnPanicCleanup(fnc: Function) {
+    _onPanicCleanups = _onPanicCleanups.filter(_fnc => _fnc !== fnc);
+}
+
 export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
     const settings = await useSettings();
-    const window = useWindow();
     const toutTime: number = settings.videoPartTimeout! * 1024;
+
+    const cleanupProtectionFileNames: string[] = [];
     
     mkdirSync(settings.downloadsDir!, { recursive: true });
 
@@ -286,23 +304,28 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                 }
 
                 const donePackages: { [id: number]: boolean } = {};
+
+                if (existsSync(filePath)) {
+                    renameSync(filePath, filePath + '.off');
+                }
+
                 const fh = openSync(filePath, 'ax');
 
                 let panicCleanupDone = false;
                 const panicCleanup = () => {
-                    if (!panicCleanupDone) {
+                    if (!panicCleanupDone && cleanupProtectionFileNames.indexOf(filePath) < 0) {
                         closeSync(fh);
                         unlinkSync(filePath);
                         panicCleanupDone = true;
                     }
                 };
 
-                window.on('close', panicCleanup);
-                process.on('beforeExit', panicCleanup);
-                process.on('exit', panicCleanup);
+                $regOnPanicCleanup(panicCleanup);
 
                 videoMeta.downloadStarted = new Date();
 
+                let nullResponseCounter = 0;
+                let lastEndId = 0;
                 for (let id = 1; id > 0; id++) {
                     if (donePackages[id]) {
                         console.warn('WARNING: Double stream load call for id ' + id);
@@ -312,28 +335,45 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                     const response = await loadStream(`${mt[1]}${id}${mt[3]}`, id);
 
                     if (response === null) {
-                        if (Object.keys(donePackages).length > 0) {
-                            videoMeta.downloadStatus = 'done';
-                            console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" downloaded to "${videoMeta.path}"`);
+                        if (nullResponseCounter > 5) {
+                            if ((id - lastEndId) > 3) {
+                                if (Object.keys(donePackages).length > 0) {
+                                    videoMeta.downloadStatus = 'done';
+                                    console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" downloaded to "${videoMeta.path}"`);
+                                } else {
+                                    console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
+                                    videoMeta.downloadStatus = 'broken';
+                                }
+        
+                                videoMeta.downloadFinished = new Date();
+                                
+                                videoMeta.stream= {
+                                    initialStreamUrl: url,
+                                    maxPartId: lastEndId
+                                };
+        
+                                id = -1;
+                                cleanupProtectionFileNames.push(filePath);
+
+                                $unregOnPanicCleanup(panicCleanup);
+
+                                resolve(videoMeta);
+                                break;
+                            } else {
+                                // Try 3 ids after null package if its really the end
+                                nullResponseCounter = 0;
+                            }
                         } else {
-                            console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
-                            videoMeta.downloadStatus = 'broken';
+                            // Retry package 5 times
+                            nullResponseCounter++;
+                            id--;
                         }
-
-                        videoMeta.downloadFinished = new Date();
-                        
-                        videoMeta.stream= {
-                            initialStreamUrl: url,
-                            maxPartId: id
-                        };
-
-                        id = -1;
-                        resolve(videoMeta);
-                        break;
                     } else {
                         videoMeta.downloadStatus = 'downloading';
                         writeSync(fh, new Uint8Array(response));
                         donePackages[id] = true;
+                        nullResponseCounter = 0;
+                        lastEndId = id;
                     }
                 }
 
