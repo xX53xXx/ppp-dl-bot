@@ -9,11 +9,11 @@ export type ConverterStatus = 'waiting' | 'converting' | 'broken' | 'aborted' | 
 
 export interface Video extends VideoMeta {
     downloadStatus: DownloadStatus;
-    downloadStarted?: Date;
-    downloadFinished?: Date;
+    downloadStarted?: Date|null;
+    downloadFinished?: Date|null;
     converterStatus?: ConverterStatus;
-    convertingStarted?: Date;
-    convertingFinished?: Date;
+    convertingStarted?: Date|null;
+    convertingFinished?: Date|null;
     path?: string;
     stream?: {
         initialStreamUrl: string;

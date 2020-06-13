@@ -38,6 +38,14 @@ Documentation which possibilities you have in the `settings.json` file.
 ```
 
 # Changelog
+## 1.0.1
+  - Download mechanism slightly improved. Downloaded packages directly stored into file.
+    - Less RAM useage
+    - Faster write to file speed (not really but there is no pause to write downloaded packages to the file, this pause is broken apart)
+  - Bugfix: Converter and downloader sync fixed. Now multiple converters and !!one!! downloader processes can run at the same time.
+  - Bugfix: Auto relogin implemented to prevent false positives.
+  - Bugfix/Feature: After all downloads are done, the queue is restartet to retry false positives.
+  
 ## 1.0.0
 - Download mechanisum hard changed.
   - Download speed super duper hard improved.
