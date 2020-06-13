@@ -40,16 +40,18 @@ regEvent(PageStructureError, message => {
 async function run(win: BrowserWindow) {
     try {
 
+        const settings = await useSettings();
+
         console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
         console.log('You can run both in parallel. Run "yarn convert" in a second terminal window/session.');
         console.log('');
 
-        mkdirSync(useSettings().downloadsDir, { recursive: true });
+        mkdirSync(settings.downloadsDir, { recursive: true });
 
         await authenticate();
         const lastVideoId = await getLastVideoId();
 
-        const database = useDatabase();
+        const database = await useDatabase();
         
         for (let id = 1; id <= lastVideoId; id++) {
             const video = database.get(id);

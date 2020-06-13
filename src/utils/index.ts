@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
 import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync } from 'fs';
-import formatDate from 'date-fns/format';
+import { checkSync, lockSync, unlockSync }  from 'proper-lockfile';
 import sanitize from 'sanitize-filename';
 import ping from 'ping';
 import axios from 'axios';
@@ -27,17 +27,30 @@ import {
     StartVideoDownload
 } from '../consts/events';
 
-export function readJsonFile<T>(filePath: PathLike): T {
+export async function lockFile(filePath: string) {
+    while (checkSync(filePath)) {
+        await new Promise((resolve, _) => setTimeout(resolve, 1024));
+    }
+
+    return lockSync(filePath);
+}
+
+export async function readJsonFile<T>(filePath: PathLike): Promise<T> {
     if (!existsSync(filePath)) {
         throw new Error(`JSON file "${filePath}" not found.`);
     }
-    
+
+    await lockFile(filePath.toString());
     const data: string = readFileSync(filePath, 'utf8');
+    unlockSync(filePath.toString());
+
     return JSON.parse(data) as T;
 }
 
 export async function writeJsonFile<T = any>(filePath: PathLike, data: T, format?: boolean): Promise<void> {
-    writeFileSync(filePath, JSON.stringify(data, null, format? 2 : undefined), 'utf-8');
+    await lockFile(filePath.toString());
+    writeFileSync(filePath, JSON.stringify(data, null, format ? 2 : undefined), 'utf-8');
+    unlockSync(filePath.toString());
 }
 
 let browserWindow: BrowserWindow|null = null;
@@ -54,9 +67,9 @@ export function useWindow(): BrowserWindow {
 }
 
 const settings: { [filePath: string]: Settings; } = {};
-export function useSettings(settingsFilePath: string = './settings.json'): Settings {
+export async function useSettings(settingsFilePath: string = './settings.json'): Promise<Settings> {
     if (!settings[settingsFilePath]) {
-        settings[settingsFilePath] = readJsonFile<Settings>(settingsFilePath);
+        settings[settingsFilePath] = await readJsonFile<Settings>(settingsFilePath);
         
         if (!settings[settingsFilePath].tempDir) {
             settings[settingsFilePath].tempDir = tmpdir();
@@ -71,9 +84,10 @@ export function useSettings(settingsFilePath: string = './settings.json'): Setti
 }
 
 let database: Database|null = null;
-export function useDatabase(forceReload?: boolean): Database {
+export async function useDatabase(forceReload?: boolean, databaseFileName: string = 'db.json'): Promise<Database> {
     if (!database || forceReload) {
-        database = new Database();
+        const settings = await useSettings();
+        database = new Database(path.join(settings.downloadsDir, databaseFileName));
     }
 
     return database;
@@ -115,7 +129,8 @@ export async function navigate<PageName extends keyof Params>(page: PageName, ar
 }
 
 export async function authenticate(): Promise<void> {
-    const credentials = useSettings().account;
+    const settings = await useSettings();
+    const credentials = settings.account;
     const rsp = await navigate(Home);
 
     if (rsp.username) {
@@ -179,7 +194,7 @@ export function title2fileName(title: string): string {
 }
 
 export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
-    const settings = useSettings();
+    const settings = await useSettings();
     const toutTime: number = settings.videoPartTimeout! * 1024;
     
     mkdirSync(settings.downloadsDir!, { recursive: true });

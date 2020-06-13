@@ -26,8 +26,8 @@ export class Database {
 
     private _saveTimeout: NodeJS.Timeout|null = null;
 
-    constructor(databaseFileName: string = 'db.json') {
-        this._dbFilePath = path.join(useSettings().downloadsDir, databaseFileName);
+    constructor(databaseFilePath: string) {
+        this._dbFilePath = databaseFilePath;
         this.reload();
     }
 
@@ -39,15 +39,15 @@ export class Database {
         }
     }
 
-    public reload() {
+    public async reload() {
         if (existsSync(this._dbFilePath)) {
-            this._db = readJsonFile<DatabaseData>(this._dbFilePath);
+            this._db = await readJsonFile<DatabaseData>(this._dbFilePath);
             this.fixDates();
         }
     }
 
     public async set(video: Video, autoSave: boolean = true) {
-        this.reload();
+        await this.reload();
 
         this._db[video.id] = video;
 
