@@ -90,10 +90,16 @@ async function run(win: BrowserWindow) {
 
         console.log('');
         console.warn('IMPORTANT: The *.TS files are in a bad codec. Use the converter "yarn convert" to convert videos to a usefull .mp4 codec.');
-        console.log('Done.');
+        console.log('');
         
-        win.close();
-        process.exit(0);
+        let timeLeft = 30;
+        let inv = setInterval(() => {
+            process.stdout.write('Done. Restart in ' + (timeLeft--) + 's                                                                 \r');
+            if (timeLeft <= 0) {
+                clearInterval(inv);
+                run(win);
+            }
+        }, 1000);
     } catch (err) {
         console.error(err);
         process.exit(-2);
