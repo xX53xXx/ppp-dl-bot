@@ -38,6 +38,10 @@ regEvent(PageStructureError, message => {
 });
 
 async function run(win: BrowserWindow) {
+    win.on('close', () => {
+        process.exit();
+    });
+
     try {
 
         const settings = await useSettings();

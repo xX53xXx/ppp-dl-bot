@@ -5,18 +5,19 @@ import {
 } from '../utils';
 import { Video } from '../entities/Database';
 import isAfter from 'date-fns/isAfter';
-import isEqual from 'date-fns/isEqual';
 import subHours from 'date-fns/subHours';
 import dateFormat from 'date-fns/format';
 import ffmpeg from 'fluent-ffmpeg';
 import { renameSync, copyFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join as joinPath } from 'path';
+import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
 
 (async function() {
     const database = await useDatabase();
     const settings = await useSettings();
 
     let currentProcessingVideo: Video|null = null;
+
     async function convert(entry: Video, currentFilePath: string, newFilePath: string) {
         return new Promise((resolve, _) => {
             currentProcessingVideo = entry;
@@ -56,16 +57,23 @@ import { join as joinPath } from 'path';
         });
     }
 
-    // TODO: Why this do not work?
-    process.on('exit', async code => {
-        if (currentProcessingVideo) {
-            currentProcessingVideo.converterStatus = 'aborted';
-            database.set(currentProcessingVideo);
-            await database.save();
+    let panicCleanupDone = false;
+    const panicCleanup = (code: number) => {
+        if (!panicCleanupDone) {
+            if (currentProcessingVideo) {
+                currentProcessingVideo.converterStatus = 'aborted';
+                database.set(currentProcessingVideo);
+            }
+    
+            console.log('Process exit with code: ', code);
+            panicCleanupDone = true;
         }
+    };
 
-        console.log('Process exit with code: ', code);
-    });
+    // TODO: Why this do not work?
+    process.on('beforeExit', panicCleanup);
+    process.on('exit', panicCleanup);
+
 
     /**
      * Drop file.
@@ -106,7 +114,6 @@ import { join as joinPath } from 'path';
         }
     }
 
-    let runTimeout: any = null;
     const run = async () => {
         database.reload();
         
@@ -124,42 +131,30 @@ import { join as joinPath } from 'path';
 
             const now = new Date();
 
-            if (entry.converterStatus) {
-                if (entry.converterStatus === 'done') {
-                    printSkippMessage('done');
-                    return;
-                }
-                if (entry.converterStatus === 'converting' && entry.convertingStarted && !isAfter(subHours(now, 12), entry.convertingStarted)) {
-                    printSkippMessage('other service converting');
-                    return;
-                }
-            }
-
             const currentFilePath = entry.path ? joinPath(settings.downloadsDir, entry.path!.replace(/^.\//g, '')) : undefined;
-
             if (!currentFilePath || !existsSync(currentFilePath)) {
                 console.error('Error: Broken entry', entry);
                 return;
             }
 
+            if (entry.converterStatus) {
+                if (entry.converterStatus === 'done') {
+                    printSkippMessage('done');
+                    return;
+                }
+
+                if (checkSync(currentFilePath) || (entry.converterStatus === 'converting' && entry.convertingStarted && !isAfter(subHours(now, 12), entry.convertingStarted))) {
+                    printSkippMessage('other service converting');
+                    return;
+                }
+            }
+
+            lockSync(currentFilePath);
+
             entry.converterStatus = 'converting';
             entry.convertingStarted = now;
 
             database.set(entry);
-
-            await database.save();
-
-            database.reload();
-
-            {
-                const tmp = database.get(entry.id);
-                if (!(tmp && tmp.convertingStarted && isEqual(tmp.convertingStarted, now))) {
-                    printSkippMessage('other service converting OR broken');
-                    return;
-                } else {
-                    entry = tmp;
-                }
-            }
 
             const newFilePath = currentFilePath.replace(/\.TS$/ig, '.mp4');
 
@@ -170,22 +165,33 @@ import { join as joinPath } from 'path';
             try {
                 await convert(entry, currentFilePath, newFilePath);
                 entry.converterStatus = 'done';
+                entry.convertingFinished = new Date();
                 entry.path = './' + getFileName(newFilePath);
+                await database.set(entry);
+
+                unlockSync(currentFilePath);
 
                 if (currentFilePath !== newFilePath) {
                     dropFile(currentFilePath, now);
                 }
             } catch (err) {
                 console.error('Error: Something went wrong.', err, entry);
+                entry.converterStatus = 'broken';
+                entry.convertingFinished = new Date();
+                await database.set(entry);
+                unlockSync(currentFilePath);
                 return;
             }
-
-            await database.save();
         });
 
-        clearTimeout(runTimeout);
-        console.log('Done. Recheck in 1 minute.');
-        runTimeout = setTimeout(run, 60000);
+        let timeLeft = 30;
+        let inv = setInterval(() => {
+            process.stdout.write('Done. Recheck in ' + (timeLeft--) + 's                                                                 \r');
+            if (timeLeft <= 0) {
+                clearInterval(inv);
+                run();
+            }
+        }, 1000);
     };
 
     run();

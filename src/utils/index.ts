@@ -1,6 +1,5 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync } from 'fs';
-import { checkSync, lockSync, unlockSync }  from 'proper-lockfile';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
 import sanitize from 'sanitize-filename';
 import ping from 'ping';
 import axios from 'axios';
@@ -27,30 +26,17 @@ import {
     StartVideoDownload
 } from '../consts/events';
 
-export async function lockFile(filePath: string) {
-    while (checkSync(filePath)) {
-        await new Promise((resolve, _) => setTimeout(resolve, 1024));
-    }
-
-    return lockSync(filePath);
-}
-
 export async function readJsonFile<T>(filePath: PathLike): Promise<T> {
     if (!existsSync(filePath)) {
         throw new Error(`JSON file "${filePath}" not found.`);
     }
 
-    await lockFile(filePath.toString());
     const data: string = readFileSync(filePath, 'utf8');
-    unlockSync(filePath.toString());
-
     return JSON.parse(data) as T;
 }
 
 export async function writeJsonFile<T = any>(filePath: PathLike, data: T, format?: boolean): Promise<void> {
-    await lockFile(filePath.toString());
     writeFileSync(filePath, JSON.stringify(data, null, format ? 2 : undefined), 'utf-8');
-    unlockSync(filePath.toString());
 }
 
 let browserWindow: BrowserWindow|null = null;
@@ -195,6 +181,7 @@ export function title2fileName(title: string): string {
 
 export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
     const settings = await useSettings();
+    const window = useWindow();
     const toutTime: number = settings.videoPartTimeout! * 1024;
     
     mkdirSync(settings.downloadsDir!, { recursive: true });
@@ -293,33 +280,42 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                     return;
                 }
 
-                const data: Uint8Array[] = [];
+                const donePackages: { [id: number]: boolean } = {};
+                const fh = openSync(filePath, 'ax');
+
+                let panicCleanupDone = false;
+                const panicCleanup = () => {
+                    if (!panicCleanupDone) {
+                        closeSync(fh);
+                        unlinkSync(filePath);
+                        panicCleanupDone = true;
+                    }
+                };
+
+                window.on('close', panicCleanup);
+                process.on('beforeExit', panicCleanup);
+                process.on('exit', panicCleanup);
+
+                videoMeta.downloadStarted = new Date();
 
                 for (let id = 1; id > 0; id++) {
+                    if (donePackages[id]) {
+                        console.warn('WARNING: Double stream load call for id ' + id);
+                        continue;
+                    }
+
                     const response = await loadStream(`${mt[1]}${id}${mt[3]}`, id);
 
                     if (response === null) {
-                        if (data.length > 0) {
-                            try {
-                                const fh = openSync(filePath, 'ax');
-
-                                for (let pkg of data) {
-                                    writeSync(fh, new Uint8Array(pkg));
-                                }
-                                
-                                closeSync(fh);
-
-                                videoMeta.downloadStatus = 'done';
-
-                                console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" downloaded to "${videoMeta.path}"`);
-                            } catch (err) {
-                                reject(err);
-                                break;
-                            }
+                        if (Object.keys(donePackages).length > 0) {
+                            videoMeta.downloadStatus = 'done';
+                            console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" downloaded to "${videoMeta.path}"`);
                         } else {
                             console.log(`Info: ${videoMeta.id}#"${videoMeta.name}" is broken.`);
                             videoMeta.downloadStatus = 'broken';
                         }
+
+                        videoMeta.downloadFinished = new Date();
                         
                         videoMeta.stream= {
                             initialStreamUrl: url,
@@ -331,8 +327,15 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                         break;
                     } else {
                         videoMeta.downloadStatus = 'downloading';
-                        data.push(response);
+                        writeSync(fh, new Uint8Array(response));
+                        donePackages[id] = true;
                     }
+                }
+
+                closeSync(fh);
+
+                if (videoMeta.downloadStatus !== 'done') {
+                    unlinkSync(filePath);
                 }
             };
 

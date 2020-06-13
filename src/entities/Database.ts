@@ -1,6 +1,6 @@
-import * as path from 'path';
 import { existsSync } from 'fs';
-import { readJsonFile, useSettings, writeJsonFile } from '../utils';
+import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
+import { readJsonFile, writeJsonFile } from '../utils';
 import { VideoMeta } from './VideoMeta';
 import parseISO from 'date-fns/parseISO';
 
@@ -9,8 +9,11 @@ export type ConverterStatus = 'waiting' | 'converting' | 'broken' | 'aborted' | 
 
 export interface Video extends VideoMeta {
     downloadStatus: DownloadStatus;
+    downloadStarted?: Date;
+    downloadFinished?: Date;
     converterStatus?: ConverterStatus;
     convertingStarted?: Date;
+    convertingFinished?: Date;
     path?: string;
     stream?: {
         initialStreamUrl: string;
@@ -34,7 +37,11 @@ export class Database {
     private fixDates() {
         for (let key of Object.keys(this._db)) {
             if (typeof (this._db as any)[key].convertingStarted === 'string') {
+                (this._db as any)[key].downloadStarted = parseISO((this._db as any)[key].downloadStarted);
+                (this._db as any)[key].downloadFinished = parseISO((this._db as any)[key].downloadFinished);
+
                 (this._db as any)[key].convertingStarted = parseISO((this._db as any)[key].convertingStarted);
+                (this._db as any)[key].convertingFinished = parseISO((this._db as any)[key].convertingFinished);
             }
         }
     }
@@ -43,16 +50,29 @@ export class Database {
         if (existsSync(this._dbFilePath)) {
             this._db = await readJsonFile<DatabaseData>(this._dbFilePath);
             this.fixDates();
+        } else {
+            await writeJsonFile(this._dbFilePath, {});
         }
     }
 
     public async set(video: Video, autoSave: boolean = true) {
-        await this.reload();
 
-        this._db[video.id] = video;
+        const cmd = async () => {
+            await this.reload();
 
-        if (autoSave) {
-            return this.save();
+            this._db[video.id] = video;
+
+            if (autoSave) {
+                return this.save();
+            }
+        };
+
+        if (this.isOwned()) {
+            await cmd();
+        } else {
+            await this.waitLock();
+            await cmd();
+            this.unlock();
         }
     }
 
@@ -61,15 +81,25 @@ export class Database {
     }
 
     public async save() {
-        clearTimeout(this._saveTimeout!);
-        return new Promise(async (resolve, _) => {
-            try {
-                const rsp = await writeJsonFile(this._dbFilePath, this._db, true);
-                resolve(rsp);
-            } catch {
-                this._saveTimeout = setTimeout(() => this.save(), 1024);
-            }
-        });
+        const cmd = async () => {
+            clearTimeout(this._saveTimeout!);
+            return new Promise(async (resolve, _) => {
+                try {
+                    const rsp = await writeJsonFile(this._dbFilePath, this._db, true);
+                    resolve(rsp);
+                } catch {
+                    this._saveTimeout = setTimeout(() => this.save(), 1024);
+                }
+            });
+        };
+
+        if (this.isOwned()) {
+            await cmd();
+        } else {
+            await this.waitLock();
+            await cmd();
+            this.unlock();
+        }
     }
 
     public async forEach(callback: (entry: Video, index: number) => Promise<void>) {
@@ -81,5 +111,36 @@ export class Database {
             // @ts-ignore
             await callback(this._db[keys[i]], i++);
         };
+    }
+
+
+    private _locked: boolean = false;
+
+    public isLocked(): boolean {
+        return checkSync(this._dbFilePath);
+    }
+
+    public isOwned(): boolean {
+        return this.isLocked() && this._locked;
+    }
+
+    public lock() {
+        lockSync(this._dbFilePath);
+        this._locked = true;
+    }
+
+    public unlock() {
+        unlockSync(this._dbFilePath);
+        this._locked = false;
+    }
+
+    public async waitLock() {
+        if (this.isOwned()) return;
+
+        while (this.isLocked()) {
+            await new Promise((resolve, _) => setTimeout(resolve, 1024));
+        }
+
+        this.lock();
     }
 }
