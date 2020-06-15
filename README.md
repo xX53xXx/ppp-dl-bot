@@ -19,6 +19,7 @@ Download videos from p-p-p.tv. It uses the video stream not the download link to
     -  Run `yarn start` in project dir // Run `yarn start --unmute` to start downloader unmuted
     -  Run `yarn convert` after downloads are finished.
        -  Info: Multiple converter instances are allowed, but do not run multiple downloader instances with the same `downloadsDir` in settings.
+       - WARNING: Better don't use multiple convert processes at one, evil bug found where the db.json files becomes empty. Still better first download and then run only one converter process to avoid two processes write to the db.json at the same time.
 
 # Settings documentation
 Documentation which possibilities you have in the `settings.json` file.
