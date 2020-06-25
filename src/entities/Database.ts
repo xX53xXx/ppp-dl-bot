@@ -23,7 +23,7 @@ export interface Video extends VideoMeta {
     }
 }
 
-type DatabaseData = {[videoId: number]: Video};
+export type DatabaseData = {[videoId: number]: Video};
 
 export class Database {
     private _db: DatabaseData = {};
