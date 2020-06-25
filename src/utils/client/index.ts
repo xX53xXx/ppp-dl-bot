@@ -3,6 +3,8 @@ import { useSettings } from '../';
 import { DatabaseData, Video, DownloadStatus, ConverterStatus } from '../../entities/Database';
 import os from 'os';
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 export interface VideoUpdate {
     url?: string;
     name?: string;
@@ -63,11 +65,18 @@ export async function putEntry(id: number, entryUpdates: VideoUpdate) {
 
 export async function getNextEntry2Convert() {
     const url = await (await useSettings()).serviceUrl;
-    return axios.get<Video|null>(url + '/next2convert', {
+    const rsp = await axios.get<Video|null>(url + '/next2convert', {
         params: {
             host: os.hostname()
         }
     });
+
+    if (typeof rsp.data !== 'object') {
+        // @ts-ignore
+        rsp.data = null;
+    }
+
+    return rsp;
 }
 
 export async function putEntryConvertingStatus(id: number, status?: "done" | "broken" | "aborted") {
@@ -76,5 +85,5 @@ export async function putEntryConvertingStatus(id: number, status?: "done" | "br
     }
 
     const url = await (await useSettings()).serviceUrl;
-    return axios.put<Video>(url + '/converting/' + id, status && { status });
+    return await axios.put<Video>(url + '/converting/' + id, status && { status });
 }

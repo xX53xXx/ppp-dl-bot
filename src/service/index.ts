@@ -111,14 +111,15 @@ type Command = (() => Promise<void>);
         if (id > 0) {
             const entry = database.get(id);
             if (entry  && entry.converterStatus === "converting") {
-                entry.lastConverterPing = new Date();
-
                 if (req.body && (req.body.status === "done" || req.body.status === "broken" || req.body.status === "aborted")) {
                     entry.converterStatus = req.body.status;
 
                     if (req.body.status === "done") {
                         entry.convertingFinished = new Date();
+                        delete entry.lastConverterPing;
                     }
+                } else {
+                    entry.lastConverterPing = new Date();
                 }
 
                 await database.set(entry);

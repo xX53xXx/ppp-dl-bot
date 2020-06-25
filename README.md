@@ -17,21 +17,33 @@ Download videos from p-p-p.tv. It uses the video stream not the download link to
        -  (Put in your credentials and destination directory)
     -  Run `yarn install` in project dir
     -  Run `yarn start` in project dir // Run `yarn start --unmute` to start downloader unmuted
-    -  Run `yarn convert` after downloads are finished.
-       -  Info: Multiple converter instances are allowed, but do not run multiple downloader instances with the same `downloadsDir` in settings.
-       - WARNING: Better don't use multiple convert processes at one, evil bug found where the db.json files becomes empty. Still better first download and then run only one converter process to avoid two processes write to the db.json at the same time.
+       -  Still need to download all videos and after it close the downloader service befor continue. (Database management service useage for the downloader cooming soon)
+    -  Run `yarn service` after downloads are finished to start the database management service.
+    -  Run `yarn convert` in a second command line window to start the converter process. (Make shure you have configured your `settings.json` correct)
+       -  Info: Multiple converter instances are allowed and should work finally (Test in progress)
 
 # Settings documentation
 Documentation which possibilities you have in the `settings.json` file.
 ```js
 {
-    "account": {
+    "account": { // (Required)
         "username": "", // (Required) Your username    You credentials are save if you use my code. You can look through the code, there is no backdor or sth. like that.
         "password": "" // (Required) Your password     No warranty if you use code from a fork. Take care not to push your credentials. settings.json is per default in .gitignore
     },
+
+    "serviceUrl": "http://192.168.1.2:5335", // (Required) Which database management service to use. (one of the in ethernet accessible ip addresse the service prints on start)
+    "service": { // (Optional) Service settings
+      "port": 5335, // (Optional) Port where the service has to listen on, default is 5335
+
+      // If both, public and private key are set https instead of http will be used.
+      "certificate": "./secret/pub.crt", // (Optional) Public key for https useage instead of http (may be a file path or the file content as string)
+      "privateKey": "./secret/private.key", // (Optional) Private key for https useage instead of http (may be a file path or the file content as string)
+    },
+
     "downloadsDir": "./out", // (Required) Where to store the downloaded files
     "videoPartTimeout": 10, // (Optional) Time in seconds how long to wait for the initial video stream befor the video gets the status 'broken' and the download continues with the next
-    "converter": {
+   
+   "converter": { // (Optional)
         "dropDir": "./temp", // (Optional) Where to move the not required files after converting process. If null, the files will be deleted.
         "ffmpegPath": "" // (Optional) The path to the ffmpeg programm on your system. If not set, that one in the PATH env var will be used.
     }
@@ -39,6 +51,9 @@ Documentation which possibilities you have in the `settings.json` file.
 ```
 
 # Changelog
+## 2.0.0-alpha
+  - Database management service implemented
+  - Converter process changed to work with database management service
 ## 1.0.1
   - Download mechanism slightly improved. Downloaded packages directly stored into file.
     - Less RAM useage

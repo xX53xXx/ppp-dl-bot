@@ -4,6 +4,7 @@
         "password": ""
     },
     "downloadsDir": "./out",
+    "serviceUrl": "http://127.0.0.1:5335",
     "converter": {
         "dropDir": "./temp"
     }

@@ -1,27 +1,19 @@
 import {
-    useDatabase,
     useSettings,
     getFileName
 } from '../utils';
 import { Video } from '../entities/Database';
-import isAfter from 'date-fns/isAfter';
-import subHours from 'date-fns/subHours';
 import dateFormat from 'date-fns/format';
 import ffmpeg from 'fluent-ffmpeg';
 import { renameSync, copyFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join as joinPath } from 'path';
-import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
+import { getNextEntry2Convert, putEntryConvertingStatus, putEntry } from '../utils/client';
 
 (async function() {
-    const database = await useDatabase();
     const settings = await useSettings();
-
-    let currentProcessingVideo: Video|null = null;
 
     async function convert(entry: Video, currentFilePath: string, newFilePath: string) {
         return new Promise((resolve, _) => {
-            currentProcessingVideo = entry;
-
             ffmpeg({
                 source: settings.converter?.ffmpegPath
             })
@@ -35,16 +27,13 @@ import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
             })
             .on('progress', (progress) => {
                 process.stdout.write('Processing: ' + Math.round(progress.percent) + '%                                                                 \r');
+                putEntryConvertingStatus(entry.id);
             })
             .on('error', (err) => {
-                console.error(err);
-                entry.converterStatus = 'broken';
-                currentProcessingVideo = null;
+                throw err;
             })
             .on('end', (stdout, stderr) => {
                 console.log(`Converting of ${entry.id}#"${entry.name}": "${entry.path}" => "${newFilePath}" is done.`);
-                entry.converterStatus = 'done';
-                currentProcessingVideo = null;
                 resolve();
             })
             .input(currentFilePath)
@@ -56,23 +45,6 @@ import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
             .saveToFile(newFilePath);
         });
     }
-
-    let panicCleanupDone = false;
-    const panicCleanup = (code: number) => {
-        if (!panicCleanupDone) {
-            if (currentProcessingVideo) {
-                currentProcessingVideo.converterStatus = 'aborted';
-                database.set(currentProcessingVideo);
-            }
-    
-            console.log('Process exit with code: ', code);
-            panicCleanupDone = true;
-        }
-    };
-
-    // TODO: Why this do not work?
-    process.on('beforeExit', panicCleanup);
-    process.on('exit', panicCleanup);
 
 
     /**
@@ -115,7 +87,60 @@ import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
     }
 
     const run = async () => {
-        database.reload();
+        const response = await getNextEntry2Convert();
+
+        if (response.data) {
+            process.stdout.write('                                                                                                           \r');
+
+            const entry = response.data;
+            const now = new Date();
+
+            const printSkippMessage = (status: string) => {
+                console.log(`${entry.id}#"${entry.name}" skipped. -> ${status}`);
+            };
+
+            const currentFilePath = entry.path ? joinPath(settings.downloadsDir, entry.path!.replace(/^.\//g, '')) : undefined;
+            if (!currentFilePath || !existsSync(currentFilePath)) {
+                console.error('Error: Broken entry', entry);
+                await putEntryConvertingStatus(entry.id, 'broken');
+                return;
+            }
+
+            const newFilePath = currentFilePath.replace(/\.TS$/ig, '.mp4');
+            if (existsSync(newFilePath)) {
+                dropFile(newFilePath, now, true);
+            }
+
+            try {
+                await convert(entry, currentFilePath, newFilePath);
+
+                await putEntry(entry.id, { path: './' + getFileName(newFilePath) });
+                await putEntryConvertingStatus(entry.id, 'done');
+
+                if (currentFilePath !== newFilePath) {
+                    dropFile(currentFilePath, now);
+                }
+            } catch (err) {
+                console.error('Error: Something went wrong.', err, entry);
+                await putEntryConvertingStatus(entry.id, 'broken');
+            }
+        }
+    };
+
+    do {
+        try {
+            await run();
+        } catch (err) {
+            console.error(`Unexpected error: `, err);
+        }
+    } while (await new Promise((resolve, _) => setTimeout(() => {
+        process.stdout.write('Waiting for new entries to convert...                                                                 \r');
+        resolve(true);
+    }, 4096)));
+})();
+
+/**
+ * database.reload();
         
         await database.forEach(async entry => {
             database.reload();
@@ -183,16 +208,4 @@ import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
                 return;
             }
         });
-
-        let timeLeft = 30;
-        let inv = setInterval(() => {
-            process.stdout.write('Done. Recheck in ' + (timeLeft--) + 's                                                                 \r');
-            if (timeLeft <= 0) {
-                clearInterval(inv);
-                run();
-            }
-        }, 1000);
-    };
-
-    run();
-})();
+ */
