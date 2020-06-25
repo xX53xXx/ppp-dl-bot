@@ -23,8 +23,6 @@ type Command = (() => Promise<void>);
     const useHttps = (settings.service && settings.service.certificate && settings.service.privateKey);
     const port = settings.service?.port || 5335;
 
-    const commandsQueue: Command[] = [];
-
     const app = express();
 
     app.use(express.urlencoded({ extended: true }));
@@ -58,9 +56,7 @@ type Command = (() => Promise<void>);
         if (id > 0) {
             const val = database.get(id);
             if (val) {
-                commandsQueue.push(async () => {
-                    await database.set(deepmerge(val, req.body));
-                });
+                await database.set(deepmerge(val, req.body));
                 
                 res.json(deepmerge(val, req.body));
             } else {
@@ -77,9 +73,7 @@ type Command = (() => Promise<void>);
         if (id > 0) {
             const val = req.body;
             if (val && val.id && val.id > 0) {
-                commandsQueue.push(async () => {
-                    await database.set(val);
-                });
+                await database.set(val);
                 
                 res.json(val);
             } else {
@@ -99,7 +93,7 @@ type Command = (() => Promise<void>);
 
                 res.json(entry);
 
-                // await database.set(entry);
+                await database.set(entry);
                 return false;
             }
         });
@@ -123,7 +117,7 @@ type Command = (() => Promise<void>);
                     }
                 }
 
-                // await database.set(entry);
+                await database.set(entry);
                 res.json(entry);
             } else if(entry && entry.converterStatus !== "converting") {
                 throw new Forbidden(`Entry #${id} do not has the converter status "converting".`);
@@ -134,25 +128,6 @@ type Command = (() => Promise<void>);
             throw new BadRequest('Invalid id value');
         }
     }));
-
-    // Commands queue processing thread
-
-    let timeout: any = null;
-
-    async function proceedQueue() {
-        clearTimeout(timeout);
-
-        while (commandsQueue.length > 0) {
-            const task = commandsQueue.shift()!;
-            await task();
-        }
-
-        timeout = setTimeout(proceedQueue, 1024);
-    }
-
-    proceedQueue();
-
-    // / Commands queue processing thread
 
     let svr;
     if (useHttps) {
