@@ -1,5 +1,5 @@
 diff --git a/node_modules/electron/electron.d.ts b/node_modules/electron/electron.d.ts
-index e77fad7..b2213ef 100644
+index de7a17f..992f446 100644
 --- a/node_modules/electron/electron.d.ts
 +++ b/node_modules/electron/electron.d.ts
 @@ -1656,6 +1656,7 @@ Here's a very simple example of creating a custom Jump List:

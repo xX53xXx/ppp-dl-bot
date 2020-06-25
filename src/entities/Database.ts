@@ -12,6 +12,8 @@ export interface Video extends VideoMeta {
     downloadStarted?: Date|null;
     downloadFinished?: Date|null;
     converterStatus?: ConverterStatus;
+    lastConverterPing?: Date|null;
+    converterHost?: string;
     convertingStarted?: Date|null;
     convertingFinished?: Date|null;
     path?: string;
@@ -44,6 +46,10 @@ export class Database {
                 (this._db as any)[key].convertingFinished = parseISO((this._db as any)[key].convertingFinished);
             }
         }
+    }
+
+    public getRawData(): DatabaseData {
+        return this._db;
     }
 
     public async reload() {
@@ -109,14 +115,16 @@ export class Database {
         }
     }
 
-    public async forEach(callback: (entry: Video, index: number) => Promise<void>) {
+    public async forEach(callback: (entry: Video, index: number) => Promise<void|boolean>) {
         let i = 0;
         let keys = Object.keys(this._db);
 
         while (keys.length > i) {
             keys = Object.keys(this._db);
             // @ts-ignore
-            await callback(this._db[keys[i]], i++);
+            if (await callback(this._db[keys[i]], i++) === false) {
+                break;
+            }
         };
     }
 

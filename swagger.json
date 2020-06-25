@@ -1,0 +1,172 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "p-p-p.tv doanload bot service api documentation.",
+        "version": "1.0.0",
+        "title": "p-p-p.tv Downloader Service API",
+        "contact": {
+            "email": "53x@acevik.de"
+        }
+    },
+    "tags": [
+        {
+            "name": "Database",
+            "description": "Basic database access and manipulation."
+        },
+        {
+            "name": "Downloader",
+            "description": "API for downloading service. (TODO)"
+        },
+        {
+            "name": "Converter",
+            "description": "API for converter services."
+        }
+    ],
+    "paths": {
+        "/entries": {
+            "get": {
+                "tags": [ "Database" ],
+                "summary": "retrives all database entries",
+                "responses": {
+                    "200": {
+                        "description": "All database entries as json data"
+                    }
+                }
+            },
+            "post": {
+                "tags": [ "Database" ],
+                "summary": "set a database entry. (id in object is required)",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "Entry json data",
+                        "type": "json",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Invalid id in object supplied. ID has to be a numeric value greater 0"
+                    },
+                    "200": {
+                        "description": "The enry object as json data"
+                    }
+                }
+            }
+        },
+        "/entries/{id}": {
+            "get": {
+                "tags": [ "Database" ],
+                "summary": "retrives one database entry",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "Entry id",
+                        "type": "integer",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Invalid id supplied. ID has to be a numeric value greater 0"
+                    },
+                    "404": {
+                        "description": "Entry for id not found in the database"
+                    },
+                    "200": {
+                        "description": "The enry object as json data"
+                    }
+                }
+            },
+            "put": {
+                "tags": [ "Database" ],
+                "summary": "updates one database entry",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "Entry id",
+                        "type": "integer",
+                        "required": true
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "Entry json data",
+                        "type": "json",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Invalid id supplied. ID has to be a numeric value greater 0"
+                    },
+                    "404": {
+                        "description": "Entry for id not found in the database"
+                    },
+                    "200": {
+                        "description": "The updated enry object as json data"
+                    }
+                }
+            }
+        },
+
+        "/next2convert": {
+            "get": {
+                "tags": [ "Converter" ],
+                "summary": "retrives the next entity to convert - it also sets all initial converting status flags and manages mechanics, that two different converter processes to not get the same entry",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "host",
+                        "description": "Host of the converting machine",
+                        "type": "string",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The next enry object as json data or empty string if there is nothing to convert"
+                    }
+                }
+            }
+        },
+        "/converting/{id}": {
+            "put": {
+                "tags": [ "Converter" ],
+                "summary": "Has to be called to tell the database, if the converting process is still alive (any n minutes) and to update the converting status",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "Entry id",
+                        "type": "integer",
+                        "required": true
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "{ \"status\": \"done\"|\"broken\"|\"aborted\" }",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Invalid id supplied. ID has to be a numeric value greater 0"
+                    },
+                    "403": {
+                        "description": "Entry has not status \"converting\""
+                    },
+                    "404": {
+                        "description": "Entry for id not found in the database"
+                    },
+                    "200": {
+                        "description": "The updated enry object as json data"
+                    }
+                }
+            }
+        }
+    }
+}
