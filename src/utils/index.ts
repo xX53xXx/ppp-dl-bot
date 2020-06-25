@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, Event } from 'electron';
-import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, unlinkSync, fsync, renameSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, PathLike, mkdirSync, openSync, writeSync, closeSync, unlinkSync, renameSync } from 'fs';
 import sanitize from 'sanitize-filename';
 import ping from 'ping';
 import axios from 'axios';

@@ -9,6 +9,8 @@ import cors from 'cors';
 import morgan from 'morgan';
 import deepmerge from 'deepmerge';
 import { useSettings, useDatabase, readJsonFile } from '../utils';
+import isBefore from 'date-fns/isBefore';
+import subMinutes from 'date-fns/subMinutes';
 import fs from 'fs';
 import os from 'os';
 
@@ -90,7 +92,12 @@ type Command = (() => Promise<void>);
 
     app.get('/next2convert', asyncHandler(async (req, res) => {
         await database.forEach(async (entry) => {
-            if (entry.downloadStatus === "done" && [ 'done', 'converting', 'broken' ].indexOf(entry.converterStatus || '') < 0) {
+            if (
+                entry.downloadStatus === "done" && 
+                (
+                    [ 'done', 'converting', 'broken' ].indexOf(entry.converterStatus || '') < 0 || 
+                    (entry.lastConverterPing && isBefore(entry.lastConverterPing, subMinutes(new Date(), 30)))
+                )) {
                 entry.converterStatus = "converting";
                 entry.convertingStarted = new Date();
                 entry.converterHost = req.query.host as string|undefined;

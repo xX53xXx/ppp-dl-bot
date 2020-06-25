@@ -1,5 +1,4 @@
 import { existsSync } from 'fs';
-import { lockSync, unlockSync, checkSync } from 'proper-lockfile';
 import { readJsonFile, writeJsonFile } from '../utils';
 import { VideoMeta } from './VideoMeta';
 import parseISO from 'date-fns/parseISO';
@@ -62,24 +61,13 @@ export class Database {
     }
 
     public async set(video: Video, autoSave: boolean = true) {
-
-        const cmd = async () => {
-            await this.reload();
+        await this.reload();
 
             this._db[video.id] = video;
 
             if (autoSave) {
                 return this.save();
             }
-        };
-
-        if (this.isOwned()) {
-            await cmd();
-        } else {
-            await this.waitLock();
-            await cmd();
-            this.unlock();
-        }
     }
 
     public async setBroken(videoId: number, autoSave: boolean = true) {
@@ -94,25 +82,15 @@ export class Database {
     }
 
     public async save() {
-        const cmd = async () => {
-            clearTimeout(this._saveTimeout!);
-            return new Promise(async (resolve, _) => {
-                try {
-                    const rsp = await writeJsonFile(this._dbFilePath, this._db, true);
-                    resolve(rsp);
-                } catch {
-                    this._saveTimeout = setTimeout(() => this.save(), 1024);
-                }
-            });
-        };
-
-        if (this.isOwned()) {
-            await cmd();
-        } else {
-            await this.waitLock();
-            await cmd();
-            this.unlock();
-        }
+        clearTimeout(this._saveTimeout!);
+        return new Promise(async (resolve, _) => {
+            try {
+                const rsp = await writeJsonFile(this._dbFilePath, this._db, true);
+                resolve(rsp);
+            } catch {
+                this._saveTimeout = setTimeout(() => this.save(), 1024);
+            }
+        });
     }
 
     public async forEach(callback: (entry: Video, index: number) => Promise<void|boolean>) {
@@ -126,36 +104,5 @@ export class Database {
                 break;
             }
         };
-    }
-
-
-    private _locked: boolean = false;
-
-    public isLocked(): boolean {
-        return checkSync(this._dbFilePath);
-    }
-
-    public isOwned(): boolean {
-        return this.isLocked() && this._locked;
-    }
-
-    public lock() {
-        lockSync(this._dbFilePath);
-        this._locked = true;
-    }
-
-    public unlock() {
-        unlockSync(this._dbFilePath);
-        this._locked = false;
-    }
-
-    public async waitLock() {
-        if (this.isOwned()) return;
-
-        while (this.isLocked()) {
-            await new Promise((resolve, _) => setTimeout(resolve, 1024));
-        }
-
-        this.lock();
     }
 }

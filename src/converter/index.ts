@@ -8,11 +8,15 @@ import ffmpeg from 'fluent-ffmpeg';
 import { renameSync, copyFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join as joinPath } from 'path';
 import { getNextEntry2Convert, putEntryConvertingStatus, putEntry } from '../utils/client';
+import isBefore from 'date-fns/isBefore';
+import subSeconds from 'date-fns/subSeconds';
 
 (async function() {
     const settings = await useSettings();
 
     async function convert(entry: Video, currentFilePath: string, newFilePath: string) {
+        let lastSendTS = subSeconds(new Date(), 30);
+
         return new Promise((resolve, _) => {
             ffmpeg({
                 source: settings.converter?.ffmpegPath
@@ -27,7 +31,10 @@ import { getNextEntry2Convert, putEntryConvertingStatus, putEntry } from '../uti
             })
             .on('progress', (progress) => {
                 process.stdout.write('Processing: ' + Math.round(progress.percent) + '%                                                                 \r');
-                putEntryConvertingStatus(entry.id);
+                if (isBefore(lastSendTS, subSeconds(new Date(), 30))) { // Spam protection
+                    lastSendTS = new Date();
+                    putEntryConvertingStatus(entry.id);
+                }
             })
             .on('error', (err) => {
                 throw err;
