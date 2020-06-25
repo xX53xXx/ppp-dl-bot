@@ -58,6 +58,10 @@ type Command = (() => Promise<void>);
             if (val) {
                 await database.set(deepmerge(val, req.body));
                 
+                if (req.body.id) {
+                    delete req.body.id;
+                }
+
                 res.json(deepmerge(val, req.body));
             } else {
                 throw new NotFound(`Entry with id #${id} not found`);
