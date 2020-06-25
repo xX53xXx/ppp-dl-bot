@@ -42,6 +42,7 @@ export class Database {
                 (this._db as any)[key].downloadFinished = parseISO((this._db as any)[key].downloadFinished);
 
                 (this._db as any)[key].convertingStarted = parseISO((this._db as any)[key].convertingStarted);
+                (this._db as any)[key].lastConverterPing = parseISO((this._db as any)[key].lastConverterPing);
                 (this._db as any)[key].convertingFinished = parseISO((this._db as any)[key].convertingFinished);
             }
         }
