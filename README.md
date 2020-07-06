@@ -1,6 +1,7 @@
+# !DEPRECATED!: p-p-p.tv released a new UI, update coming soon.
+
 # ppp-dl-bot
 Download videos from p-p-p.tv. It uses the video stream not the download link to avoid the 1/day limitation.
-!DEPRECATED!: p-p-p.tv released a new UI, update coming soon.
 
 # How to use
  - [Install Node](https://nodejs.org/) (Any one of the two suggested versions should work)
