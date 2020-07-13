@@ -1,9 +1,9 @@
 
-export const Home = '/index.php';
-export const Login = '/login.php';
-export const Logout = '/login.php?log=out';
-export const VideoGallery = '/videogalerie.php';
-export const Video = '/video.php';
+export const Home = '/';
+export const Login = '/login';
+export const Logout = '/logout';
+export const VideoGallery = '/videos/list/new/';
+export const Video = '/video';
 
 export type Params = {
     [Home]: undefined;

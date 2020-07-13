@@ -45,10 +45,11 @@ export function isAuthenticated(): boolean {
 }
 
 export function getUsername(): string | null {
-    const em = document.querySelector('div#search td:nth-child(2) b');
+    const em = document.querySelector('#about-us');
+    em?.querySelector('i')?.remove();
 
     if (!!em) {
-        return em.innerHTML;
+        return em.innerHTML.trim();
     }
     
     return null;

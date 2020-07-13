@@ -12,6 +12,7 @@
     "convert": "tsc && node ./compiled/converter",
     "service": "tsc && node ./compiled/service",
     "fix-paths": "tsc && node ./compiled/scripts/fix_paths.js",
+    "upgrade-database": "tsc && electron ./compiled/scripts/upgrade_database.js",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -20,7 +21,7 @@
     "cors": "^2.8.5",
     "date-fns": "^2.14.0",
     "deepmerge": "^4.2.2",
-    "electron": "^9.0.5",
+    "electron": "^10.0.0-beta.10",
     "express": "^4.17.1",
     "express-async-handler": "^1.1.4",
     "filenamify": "^4.1.0",
@@ -50,6 +51,6 @@
     "patch-package": "^6.2.2",
     "postinstall-postinstall": "^2.1.0",
     "tslib": "^2.0.0",
-    "typescript": "^3.9.5"
+    "typescript": "^3.9.6"
   }
 }

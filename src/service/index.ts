@@ -14,8 +14,6 @@ import subMinutes from 'date-fns/subMinutes';
 import fs from 'fs';
 import os from 'os';
 
-type Command = (() => Promise<void>);
-
 (async () => {
     const settings = await useSettings();
     const database = await useDatabase();

@@ -7,7 +7,7 @@
       "removeComments": true,
       "resolveJsonModule": true,
       "experimentalDecorators": true,
-      "target": "es6",
+      "target": "ES2019",
       "emitDecoratorMetadata": true,
       "moduleResolution": "node",
       "importHelpers": true,

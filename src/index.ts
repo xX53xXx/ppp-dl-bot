@@ -2,8 +2,9 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { mkdirSync } from 'fs';
 import { URL } from './consts';
-import { authenticate, $regWindow, regEvent, getLastVideoId, useDatabase, useSettings, downloadVideo, onPanicCleanup } from './utils';
+import { authenticate, $regWindow, regEvent, getLastVideoId, useSettings, downloadVideo, onPanicCleanup } from './utils';
 import { PageStructureError } from './consts/events';
+import { getEntry, postEntry } from './utils/client';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -63,11 +64,17 @@ async function run(win: BrowserWindow) {
 
         await authenticate();
         const lastVideoId = await getLastVideoId();
-
-        const database = await useDatabase();
         
         for (let id = 1; id <= lastVideoId; id++) {
-            const video = database.get(id);
+            const video = await (await getEntry(id)).data;
+
+            console.log(video);
+            break;
+        }
+
+        /*
+        for (let id = 1; id <= lastVideoId; id++) {
+            const video = await (await getEntry(id)).data;
 
             if (video && video.downloadStatus === 'done') {
                 console.log(`Info: ${id}#"${video.name}" is done -> skipped`);
@@ -89,9 +96,12 @@ async function run(win: BrowserWindow) {
                     const vid = await downloadVideo(id, video);
     
                     if (vid) {
-                        database.set(vid, true);
+                        await postEntry(vid);
                     } else {
-                        database.setBroken(id, true);
+                        await postEntry({
+                            id,
+                            downloadStatus: 'broken'
+                        });
                         console.log(`Info: ${id}# is broken.`);
                     }
 
@@ -120,6 +130,8 @@ async function run(win: BrowserWindow) {
                 run(win);
             }
         }, 1000);
+        */
+
     } catch (err) {
         console.error(err);
         process.exit(-2);

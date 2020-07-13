@@ -22,10 +22,17 @@ export interface Video extends VideoMeta {
     }
 }
 
-export type DatabaseData = {[videoId: number]: Video};
+export type DatabaseData = {
+    version: string;
+    data: {[videoId: number]: Video};
+    oldData?: {[videoId: number]: Video};
+};
 
 export class Database {
-    private _db: DatabaseData = {};
+    private _db: DatabaseData = {
+        version: '2.0',
+        data: {}
+    };
     private _dbFilePath: string;
 
     private _saveTimeout: NodeJS.Timeout|null = null;
@@ -36,20 +43,20 @@ export class Database {
     }
 
     private fixDates() {
-        for (let key of Object.keys(this._db)) {
-            if (typeof (this._db as any)[key].convertingStarted === 'string') {
-                (this._db as any)[key].downloadStarted = parseISO((this._db as any)[key].downloadStarted);
-                (this._db as any)[key].downloadFinished = parseISO((this._db as any)[key].downloadFinished);
+        for (let key of Object.keys(this._db.data)) {
+            if (typeof (this._db.data as any)[key].convertingStarted === 'string') {
+                (this._db.data as any)[key].downloadStarted = parseISO((this._db.data as any)[key].downloadStarted);
+                (this._db.data as any)[key].downloadFinished = parseISO((this._db.data as any)[key].downloadFinished);
 
-                (this._db as any)[key].convertingStarted = parseISO((this._db as any)[key].convertingStarted);
-                (this._db as any)[key].lastConverterPing = parseISO((this._db as any)[key].lastConverterPing);
-                (this._db as any)[key].convertingFinished = parseISO((this._db as any)[key].convertingFinished);
+                (this._db.data as any)[key].convertingStarted = parseISO((this._db.data as any)[key].convertingStarted);
+                (this._db.data as any)[key].lastConverterPing = parseISO((this._db.data as any)[key].lastConverterPing);
+                (this._db.data as any)[key].convertingFinished = parseISO((this._db.data as any)[key].convertingFinished);
             }
         }
     }
 
-    public getRawData(): DatabaseData {
-        return this._db;
+    public getRawData(): {[videoId: number]: Video} {
+        return this._db.data;
     }
 
     public async reload() {
@@ -64,7 +71,7 @@ export class Database {
     public async set(video: Video, autoSave: boolean = true) {
         await this.reload();
 
-            this._db[video.id] = video;
+            this._db.data[video.id] = video;
 
             if (autoSave) {
                 return this.save();
@@ -79,7 +86,7 @@ export class Database {
     }
 
     public get(id: number): Video|undefined {
-        return this._db[id];
+        return this._db.data[id];
     }
 
     public async save() {
@@ -96,12 +103,12 @@ export class Database {
 
     public async forEach(callback: (entry: Video, index: number) => Promise<void|boolean>) {
         let i = 0;
-        let keys = Object.keys(this._db);
+        let keys = Object.keys(this._db.data);
 
         while (keys.length > i) {
-            keys = Object.keys(this._db);
+            keys = Object.keys(this._db.data);
             // @ts-ignore
-            if (await callback(this._db[keys[i]], i++) === false) {
+            if (await callback(this._db.data[keys[i]], i++) === false) {
                 break;
             }
         };

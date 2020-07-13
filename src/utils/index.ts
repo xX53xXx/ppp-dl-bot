@@ -13,7 +13,7 @@ import {
     VideoMeta,
     Video as VideoFile
 } from '../entities';
-import { Home, Params, Logout, VideoGallery, Video } from '../consts/pages';
+import { Home, Params, Logout, VideoGallery, Video, Login } from '../consts/pages';
 import {
     Navigate,
     NavigationResponse,
@@ -119,14 +119,12 @@ export async function authenticate(): Promise<void> {
     const credentials = settings.account;
     const rsp = await navigate(Home);
 
-    if (rsp.username) {
-        if (rsp.username.toLowerCase() === credentials.username.toLowerCase()) {
-            return;
-        } else {
-            await navigate(Logout);
-            await navigate(Home);
-        }
+    if (rsp.username && rsp.username.toLowerCase() === credentials.username.toLowerCase()) {
+        return;
     }
+
+    await navigate(Logout);
+    await navigate(Login);
 
     return new Promise((resolve, reject) => {
         regEventOnce(Navigate, rsp => {
