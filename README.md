@@ -1,3 +1,5 @@
+# !DEPRECATED!: p-p-p.tv released a new UI, update coming soon.
+
 # ppp-dl-bot
 Download videos from p-p-p.tv. It uses the video stream not the download link to avoid the 1/day limitation.
 
