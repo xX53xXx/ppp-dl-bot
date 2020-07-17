@@ -38,7 +38,7 @@ app.on('ready', async () => {
     win.on('close', onPanicCleanup);
     process.on('beforeExit', onPanicCleanup);
     process.on('exit', onPanicCleanup);
-    process.on('SIGKILL', onPanicCleanup);
+    // process.on('SIGKILL', onPanicCleanup);
     process.on('SIGTERM', onPanicCleanup);
 
     run(win);
@@ -133,7 +133,7 @@ async function run(win: BrowserWindow) {
         */
 
     } catch (err) {
-        console.error(err);
+        console.error('Error: ', err);
         process.exit(-2);
     }
 }

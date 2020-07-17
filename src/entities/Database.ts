@@ -42,6 +42,27 @@ export class Database {
         this.reload();
     }
 
+    public migrate() {
+        if (!this._db.version) {
+            this._db = {
+                version: '1.0',
+                data: this._db
+            };
+        }
+
+        switch (this._db.version) {
+            case '1.0':
+                // 1.0 => 2.0
+                console.warn();
+                console.warn('!!!IMPORTANT!!!');
+                console.warn('Manuel database migration required! Run `yarn service` and `yarn upgrade-database` in a second terminal.');
+                console.warn();
+                break;
+        }
+
+        this.save();
+    }
+
     private fixDates() {
         for (let key of Object.keys(this._db.data)) {
             if (typeof (this._db.data as any)[key].convertingStarted === 'string') {
@@ -62,6 +83,7 @@ export class Database {
     public async reload() {
         if (existsSync(this._dbFilePath)) {
             this._db = await readJsonFile<DatabaseData>(this._dbFilePath);
+            this.migrate();
             this.fixDates();
         } else {
             await writeJsonFile(this._dbFilePath, {});

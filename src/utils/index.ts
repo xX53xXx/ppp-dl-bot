@@ -96,7 +96,20 @@ export function sendEvent<EventName extends keyof EventParams>(eventName: EventN
 // ---
 
 export async function navigate<PageName extends keyof Params>(page: PageName, args?: Params[PageName]): Promise<NavigationResponse> {
-    const url = (URL + '/' + page).replace(/\/+/g, '/') + (args ? '?' + toQueryArgs(args) : '');
+
+    const mts = /:(\w+)/ig.exec(page);
+    let url = (URL + '/' + page).replace(/\/+/g, '/');
+
+    if (mts) {
+        for (let i = 1; i < mts.length; i++) {
+            if ((args as any)[mts[i]]) {
+                url = url.replace(new RegExp(`:${mts[i]}`, 'ig'), (args as any)[mts[i]]);
+                delete (args as any)[mts[i]];
+            }
+        }
+    }
+
+    url += (args ? '?' + toQueryArgs(args) : '');
 
     try {
         const rsp = await Promise.all([
@@ -156,7 +169,7 @@ export async function getLastVideoId(): Promise<number> {
 export async function getVideoMetaData(videoId: number): Promise<VideoMeta|null> {
     const rsp = await navigate(Video, { id: videoId });
 
-    if (rsp.location.pathname === '/login.php') {
+    if (rsp.location.pathname === Login) {
         await authenticate();
         await navigate(Video, { id: videoId });
     }
@@ -199,13 +212,22 @@ export function $unregOnPanicCleanup(fnc: Function) {
     _onPanicCleanups = _onPanicCleanups.filter(_fnc => _fnc !== fnc);
 }
 
-export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Promise<VideoFile|null> {
+interface VideoDownloadOptions {
+    // oldVideo?: VideoFile;
+    extendedMetaOnly?: boolean;
+}
+
+export async function downloadVideo(videoId: number, options?: VideoDownloadOptions): Promise<VideoFile|null> {
     const settings = await useSettings();
     const toutTime: number = settings.videoPartTimeout! * 1024;
 
     const cleanupProtectionFileNames: string[] = [];
     
     mkdirSync(settings.downloadsDir!, { recursive: true });
+
+    const {
+        extendedMetaOnly = false
+    } = (options || {});
 
     return new Promise<VideoFile|null>((resolve, reject) => (async () => {
         try {
@@ -247,7 +269,10 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                 try {
                     await waitForInternet();
 
-                    process.stdout.write(`Info: Downloading ${videoMeta.id}#"${videoMeta.name}" part: ` + id + '                                                                 \r');
+                    process.stdout.write(
+                        `Info: Downloading ${videoMeta.id}#"${videoMeta.name}" part: ` +
+                        id + '                                                                 \r');
+
                     const rsp = await axios.get(url, { responseType: 'arraybuffer', timeout: 4096 });
                     
                     
@@ -300,6 +325,16 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                     reject('Error: Unexpected error, invalid stream url format.');
                     return;
                 }
+                
+                if (extendedMetaOnly) {
+                    videoMeta.stream= {
+                        initialStreamUrl: url,
+                        maxPartId: -1
+                    };
+
+                    resolve(videoMeta);
+                    return;
+                }
 
                 const donePackages: { [id: number]: boolean } = {};
 
@@ -330,7 +365,9 @@ export async function downloadVideo(videoId: number, oldVideo?: VideoFile): Prom
                         continue;
                     }
 
-                    const response = await loadStream(`${mt[1]}${id}${mt[3]}`, id);
+                    const url = `${mt[1]}${id}${mt[3]}`;
+                    
+                    const response = await loadStream(url, id);
 
                     if (response === null) {
                         if (nullResponseCounter > 5) {

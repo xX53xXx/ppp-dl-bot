@@ -4,6 +4,7 @@ import { mkdirSync } from 'fs';
 import { URL } from '../consts';
 import { authenticate, $regWindow, regEvent, getLastVideoId, useSettings, downloadVideo, onPanicCleanup } from '../utils';
 import { PageStructureError } from '../consts/events';
+import { getEntry, postEntry } from '../utils/client';
 
 app.on('ready', async () => {
     const win = new BrowserWindow({
@@ -11,7 +12,7 @@ app.on('ready', async () => {
         height: 768,
         webPreferences: {
             nodeIntegration: true,
-            preload: path.join(__dirname, 'injection/index.js')
+            preload: path.join(__dirname, '..', 'injection/index.js')
         }
     });
     win.setMenu(null);
@@ -35,7 +36,7 @@ app.on('ready', async () => {
     win.on('close', onPanicCleanup);
     process.on('beforeExit', onPanicCleanup);
     process.on('exit', onPanicCleanup);
-    process.on('SIGKILL', onPanicCleanup);
+    // process.on('SIGKILL', onPanicCleanup);
     process.on('SIGTERM', onPanicCleanup);
 
     run(win);
@@ -55,7 +56,15 @@ async function run(win: BrowserWindow) {
         await authenticate();
         const lastVideoId = await getLastVideoId();
 
-        console.log(lastVideoId);
+        for (let id = 1; id <= lastVideoId; id++) {
+            // const storedVideoMeta = await (await getEntry(id)).data;
+            const currentVideoMeta = await downloadVideo(id, {
+                extendedMetaOnly: true
+            });
+
+            console.log(currentVideoMeta);
+            break;
+        }
 
     } catch (err) {
         console.error(err);

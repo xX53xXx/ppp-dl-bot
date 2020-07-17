@@ -26,7 +26,16 @@
         "/entries": {
             "get": {
                 "tags": [ "Database" ],
-                "summary": "retrives all database entries",
+                "summary": "retrives all database entries (where entry name matches search string if is set)",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Search string",
+                        "type": "string",
+                        "required": false
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "All database entries as json data"

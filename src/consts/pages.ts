@@ -3,7 +3,7 @@ export const Home = '/';
 export const Login = '/login';
 export const Logout = '/logout';
 export const VideoGallery = '/videos/list/new/';
-export const Video = '/video';
+export const Video = '/video/:id/view';
 
 export type Params = {
     [Home]: undefined;

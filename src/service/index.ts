@@ -32,7 +32,27 @@ import os from 'os';
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
     app.get('/entries', asyncHandler(async (req, res) => {
-        res.json(database.getRawData());
+        if (req.query.query) {
+            if (typeof req.query.query !== 'string') {
+                throw new BadRequest('Invalid query value type');
+            }
+
+            const data: any = {};
+
+            for (let strId of Object.keys(database.getRawData())) {
+                const id = parseInt(strId, 10);
+                if (!id) continue;
+
+                const entry = database.get(id);
+                if (entry && entry.name && new RegExp(req.query.query as string, 'ig').test(entry.name)) {
+                    data[entry.id] = deepmerge(entry, {});
+                }
+            }
+            
+            res.json(data);
+        } else {
+            res.json(database.getRawData());
+        }
     }));
 
     app.get('/entries/:id', asyncHandler(async (req, res) => {
@@ -153,13 +173,15 @@ import os from 'os';
     svr.listen(port, () => {
         try {
             const ifaces = os.networkInterfaces();
-        
+
             for (let ifaceName of Object.keys(ifaces)) {
                 const iface = ifaces[ifaceName];
     
                 if (!iface) continue;
     
                 for (let ipAddr of iface) {
+                    if (!ipAddr) continue;
+
                     if (ipAddr.family.toLowerCase() === 'ipv4') {
                         console.log(`Listening at ${ifaceName} => ${useHttps ? 'https' : 'http'}://${ipAddr.address}:${port}`);
                     }

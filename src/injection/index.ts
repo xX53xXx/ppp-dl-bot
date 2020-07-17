@@ -127,24 +127,20 @@ regEvent(GetLastVideoId, () => {
 regEvent(GetVideoMetaData, id => {
     let metaData: VideoMeta|null = null;
     
-    const content = document.querySelector<HTMLDivElement>('#content_big');
+    const titleElement = document.querySelector<HTMLHeadElement>('h5.w-100');
+    const downloadLink = document.querySelector<HTMLAnchorElement>('a[href^="/video/"]:first-child');
 
-    if (content) {
-        const titleElement = content.querySelector<HTMLHRElement>('h2');
-        const downloadLink = content.querySelector<HTMLAnchorElement>('a[href^="download.php?id"]');
-
-        if (titleElement && downloadLink) {
-            metaData = {
-                id,
-                url: location.href,
-                name: titleElement.innerHTML.trim(),
-                downloadUrl: location.origin + '/' + downloadLink.getAttribute('href')?.trim()
-            };
-        }
+    if (titleElement && downloadLink) {
+        metaData = {
+            id,
+            url: location.href,
+            name: titleElement.innerHTML.trim(),
+            downloadUrl: location.origin + '/' + downloadLink.getAttribute('href')?.trim()
+        };
     }
 
-    if (metaData && metaData.name && metaData.name.trim().length > 0) {
-        metaData.name = fixFailedChars(metaData.name.trim());
+    if (metaData && metaData.name && metaData.name.length > 0) {
+        metaData.name = fixFailedChars(metaData.name);
     } else {
         metaData = null;
     }
